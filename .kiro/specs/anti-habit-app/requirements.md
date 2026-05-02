@@ -112,9 +112,9 @@
    - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する
    - **「目標チェンジ」**：Pivot機能を起動し、さらに別のGoalへの行動を提案する
    - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
-6. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN THE DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Voiceで提案する
-7. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、THE Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
-8. THE DagaSoreDeIi_App SHALL 同一日に同一ユーザーへPivotを最大3回まで実行する
+6. IF ユーザーが「目標チェンジ」を選択したとき、かつPivot_Goal候補（Primary_Goal以外のGoal）が存在しない場合、THEN THE DagaSoreDeIi_App SHALL ユーザーのProfileの興味分野・生活リズム・現在の悩みを参照してAIが即席のPivot候補を提案する（例：Profileに「運動が好き」とあれば「筋トレとかどう？」）
+7. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN THE DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Voiceで提案する
+8. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、THE Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
 
 ---
 
