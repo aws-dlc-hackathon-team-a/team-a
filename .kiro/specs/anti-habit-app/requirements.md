@@ -42,7 +42,7 @@
 
 #### 受け入れ基準
 
-1. THE DagaSoreDeIi_App SHALL ユーザーが初回起動時にProfileを作成できるオンボーディングフローを提供する
+1. THE DagaSoreDeIi_App SHALL ユーザーが初回起動時にProfileの登録を完了するまで、アプリの本機能（Recommendation・Pivot等）にアクセスできない必須オンボーディングフローを提供する
 2. THE DagaSoreDeIi_App SHALL Profile登録項目として、氏名・年齢・職業・興味分野・生活リズム（朝型/夜型）・現在の悩みを含む
 3. WHEN ユーザーがProfileを登録したとき、THE DagaSoreDeIi_App SHALL AIがProfileを解析し、初期Pivot_Goal候補を3件以上自動生成する
 4. THE DagaSoreDeIi_App SHALL ユーザーがProfileをいつでも編集できる機能を提供する
@@ -57,14 +57,11 @@
 
 #### 受け入れ基準
 
-1. THE DagaSoreDeIi_App SHALL ユーザーが最大10件のGoalを登録できる機能を提供する
+1. THE DagaSoreDeIi_App SHALL ユーザーが複数のGoalを登録できる機能を提供する
 2. THE DagaSoreDeIi_App SHALL ユーザーがGoalの中から1件をPrimary_Goalとして指定できる機能を提供する
-3. THE DagaSoreDeIi_App SHALL Primary_GoalはあくまでRecommendationの出発点として機能し、ユーザーがPrimary_Goalに縛られることを強制しない
-4. WHEN ユーザーがGoalを登録するとき、THE DagaSoreDeIi_App SHALL Goal名が1文字以上50文字以内であることを検証する
-5. IF Goal名が空文字または50文字を超える場合、THEN THE DagaSoreDeIi_App SHALL 登録を拒否し、具体的なエラーメッセージを表示する
-6. THE DagaSoreDeIi_App SHALL 登録されたGoalのうちPrimary_Goal以外を自動的にPivot_Goal候補（同じくらい価値のある別の選択肢）として扱う
-7. WHEN ユーザーがGoalを削除するとき、THE DagaSoreDeIi_App SHALL 削除前に確認ダイアログを表示する
-8. IF 削除対象のGoalがPrimary_Goalである場合、THEN THE DagaSoreDeIi_App SHALL 別のGoalをPrimary_Goalに設定するよう促すメッセージを表示する
+3. THE DagaSoreDeIi_App SHALL 登録されたGoalのうちPrimary_Goal以外を自動的にPivot_Goal候補（同じくらい価値のある別の選択肢）として扱う
+4. WHEN ユーザーがGoalを削除するとき、THE DagaSoreDeIi_App SHALL 削除前に確認ダイアログを表示する
+5. IF 削除対象のGoalがPrimary_Goalである場合、THEN THE DagaSoreDeIi_App SHALL 別のGoalをPrimary_Goalに設定するよう促すメッセージを表示する
 
 ---
 
@@ -74,14 +71,13 @@
 
 #### 受け入れ基準
 
-1. THE State_Detection SHALL 位置情報・スクリーンタイム・ユーザーの自己申告の3種類のTriggerソースをサポートする
+1. THE State_Detection SHALL 位置情報・ユーザーの自己申告の2種類のTriggerソースをサポートする
 2. WHEN ユーザーがアプリを起動したとき、THE State_Detection SHALL ユーザーの現在の状態を検知しTriggerを評価する（v1ではアプリ起動時のみ実行。バックグラウンドでのプッシュ通知トリガーはv2以降）
 3. WHEN アプリ起動時にユーザーが2時間以上同一の自宅位置に留まっているとき、THE State_Detection SHALL 「長時間在宅」Triggerを発火する
-4. WHEN アプリ起動時にその日のスクリーンタイムにおいてGoal関連アプリの使用時間が0分のとき、THE State_Detection SHALL 「目標未着手」Triggerを発火する
-5. WHEN ユーザーが「今日は何もできていない」「どうしようか悩んでいる」などの心理状態をアプリに入力したとき、THE State_Detection SHALL 「心理的停滞」Triggerを発火する
-6. THE DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
-7. IF 位置情報の取得権限が拒否されている場合、THEN THE DagaSoreDeIi_App SHALL 位置情報Triggerを無効化し、他のTriggerソースのみで動作する
-8. WHEN 複数のTriggerが同時に発火したとき、THE State_Detection SHALL 最も優先度の高いTriggerを1件選択してRecommendationを生成する
+4. WHEN ユーザーが「今日は何もできていない」「どうしようか悩んでいる」などの心理状態をアプリに入力したとき、THE State_Detection SHALL 「心理的停滞」Triggerを発火する
+5. THE DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
+6. IF 位置情報の取得権限が拒否されている場合、THEN THE DagaSoreDeIi_App SHALL 位置情報Triggerを無効化し、他のTriggerソースのみで動作する
+7. WHEN 複数のTriggerが同時に発火したとき、THE State_Detection SHALL 最も優先度の高いTriggerを1件選択してRecommendationを生成する
 
 ---
 
@@ -93,7 +89,11 @@
 
 1. WHEN ユーザーがアプリを起動しTriggerが発火したとき、THE DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Voiceのトーンで初回Recommendationをアプリ内に表示する（v1ではアプリ内表示のみ。アプリを開いていないタイミングでのプッシュ通知はv2以降）
 2. THE DagaSoreDeIi_App SHALL 初回RecommendationをPrimary_Goalに関連した行動提案とする（例：「カフェに移動して英語の文法勉強しない？」）
-3. THE DagaSoreDeIi_App SHALL 初回Recommendationに「やる」「今日は別のことをやる」の2択の応答ボタンを含める
+3. THE DagaSoreDeIi_App SHALL 初回Recommendationに以下の4択の応答ボタンを含める
+   - **「やる」**：提案されたアクションをそのまま実施する
+   - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する（例：「カフェで英語」→「家で英語の映画を見る」）
+   - **「目標チェンジ」**：Pivot機能を起動し、別のGoalへの行動を提案する（例：「やっぱ筋トレする？」）
+   - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
 
 ---
 
@@ -104,10 +104,14 @@
 #### 受け入れ基準
 
 1. WHEN ユーザーがアプリを起動し初回Recommendationに「やる」と応答したとき、THE DagaSoreDeIi_App SHALL Primary_Goalの達成をサポートする詳細なアクションステップを表示する
-2. WHEN ユーザーがアプリを起動し初回Recommendationに「今日は別のことをやる」と応答したとき、THE DagaSoreDeIi_App SHALL 即座にPivot機能を起動しPivot_Goalに基づく同じくらい価値のある別の行動提案をFuture_Self_ModelのPersona_Voiceで提示する
+2. WHEN ユーザーがアプリを起動し初回Recommendationに「いいえ（別の方法で）」と応答したとき、THE DagaSoreDeIi_App SHALL 同じPrimary_Goal内で別のアクションをFuture_Self_ModelのPersona_Voiceで提案する（例：「カフェで英語の文法勉強」→「家で英語の映画を見る」）
 3. THE DagaSoreDeIi_App SHALL Pivot提案を常にFuture_Self_ModelのPersona_Voice（未来の自分の設定・語り口）で行う
 4. WHEN ユーザーが初回Recommendationを無視して別の行動（例：筋トレ）を開始したとき、THE DagaSoreDeIi_App SHALL その行動をAction_Logに記録しPivot_Goalとして認識する
-5. THE DagaSoreDeIi_App SHALL Pivot後のRecommendationに「これをやる」「別の提案を見る」の2択の応答ボタンを含める
+5. THE DagaSoreDeIi_App SHALL Pivot後のRecommendationに以下の4択の応答ボタンを含める
+   - **「やる」**：提案されたアクションをそのまま実施する
+   - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する
+   - **「目標チェンジ」**：Pivot機能を起動し、さらに別のGoalへの行動を提案する
+   - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
 6. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN THE DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Voiceで提案する
 7. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、THE Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
 8. THE DagaSoreDeIi_App SHALL 同一日に同一ユーザーへPivotを最大3回まで実行する
