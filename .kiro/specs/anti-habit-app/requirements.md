@@ -31,6 +31,7 @@
 - **Action_Log**: ユーザーが実際に行った行動の記録。ProfileおよびLearning_Engineの更新に使用される
 - **Similar_User_Data**: 同じようなステータス・プロフィールを持つ他ユーザーの匿名化された行動・結果データ。Future_Self_Modelの構築に使用される
 - **Future_Self_Model**: Similar_User_Dataを基に構築した「未来の自分」モデル。「あなたと似た状況だった人は、筋トレを始めて3ヶ月でこうなった」という形で実データの裏付けを持つPersona_Messageを実現する
+- **Action_Ticket**: ユーザーがRecommendationに応答（「やる」「いいえ（別の方法で）」「目標チェンジ」「自由入力」）した時点で生成される行動タスク。ステータスは「未完了（Open）」と「完了（Done）」の2種類。ユーザーが自己申告でDoneにするまでOpenのまま保持され、1日の終わりに未完了のまま残ったチケットは自動破棄される
 
 ---
 
@@ -94,6 +95,7 @@
    - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する（例：「カフェで英語」→「家で英語の映画を見る」）
    - **「目標チェンジ」**：Pivot機能を起動し、別のGoalへの行動を提案する（例：「やっぱ筋トレする？」）
    - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
+4. WHEN ユーザーが4択のいずれかに応答したとき、DagaSoreDeIi_App SHALL その行動に対応するAction_Ticketを生成しステータスをOpen（未完了）として保持する
 
 ---
 
@@ -112,9 +114,10 @@
    - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する
    - **「目標チェンジ」**：Pivot機能を起動し、さらに別のGoalへの行動を提案する
    - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
-6. IF ユーザーが「目標チェンジ」を選択したとき、かつPivot_Goal候補（Primary_Goal以外のGoal）が存在しない場合、THEN DagaSoreDeIi_App SHALL ユーザーのProfileの興味分野・生活リズム・現在の悩みを参照してAIが即席のPivot候補を提案する（例：Profileに「運動が好き」とあれば「筋トレとかどう？」）
-7. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Messageで提案する
-8. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
+6. WHEN ユーザーがPivot後のRecommendationの4択のいずれかに応答したとき、DagaSoreDeIi_App SHALL その行動に対応するAction_Ticketを生成しステータスをOpen（未完了）として保持する
+7. IF ユーザーが「目標チェンジ」を選択したとき、かつPivot_Goal候補（Primary_Goal以外のGoal）が存在しない場合、THEN DagaSoreDeIi_App SHALL ユーザーのProfileの興味分野・生活リズム・現在の悩みを参照してAIが即席のPivot候補を提案する（例：Profileに「運動が好き」とあれば「筋トレとかどう？」）
+8. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Messageで提案する
+9. WHEN ユーザーがAction_TicketをDoneにしたとき、Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
 
 ---
 
@@ -139,7 +142,7 @@
 
 #### 受け入れ基準
 
-1. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日の行動を集計しEffort_Pointを付与する
+1. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日のDone済みAction_Ticketを集計しEffort_Pointを付与する
 2. DagaSoreDeIi_App SHALL Primary_Goalの行動完了に対して10 Effort_Pointを付与する
 3. DagaSoreDeIi_App SHALL Pivot_Goalの行動完了に対して7 Effort_Pointを付与する
 4. DagaSoreDeIi_App SHALL 最低限の行動（例：外出・散歩）の完了に対して3 Effort_Pointを付与する
@@ -187,7 +190,7 @@
 
 #### 受け入れ基準
 
-1. Learning_Engine SHALL ユーザーのAction_Log（Yes/No応答・実際の行動・時間帯・曜日）を蓄積し行動モデルを構築する
+1. Learning_Engine SHALL ユーザーのAction_Log（Yes/No応答・Action_TicketのDone記録・時間帯・曜日・対象Goal種別）を蓄積し行動モデルを構築する
 2. WHEN Action_Logが7件以上蓄積されたとき、Learning_Engine SHALL Recommendationの生成アルゴリズムをパーソナライズされたモデルに切り替える
 3. Learning_Engine SHALL 曜日・時間帯ごとのGoal達成率を分析し、達成率の高い時間帯を優先してTriggerを評価する
 4. WHEN 特定のPivot_Goalへの応答率が80%を超えたとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案する
@@ -202,3 +205,20 @@
 #### 受け入れ基準
 
 1. DagaSoreDeIi_App SHALL 位置情報・スクリーンタイムなどのセンシティブデータの収集について、初回利用時にユーザーの明示的な同意を取得する
+
+---
+
+### 要件 12: Action_Ticketによる行動管理
+
+**ユーザーストーリー:** ユーザーとして、「やる」と決めた行動を自分のペースで完了申告したい。そうすることで、プレッシャーなく「今日も何かできた」を積み上げられる。やりきれなかった日も責められず、できたことだけが称えられる体験を得たい。
+
+#### 受け入れ基準
+
+1. WHEN ユーザーがRecommendationの4択（「やる」「いいえ（別の方法で）」「目標チェンジ」「自由入力」）のいずれかに応答したとき、DagaSoreDeIi_App SHALL その行動内容・対象Goal・生成日時を含むAction_TicketをOpen（未完了）ステータスで生成する
+2. DagaSoreDeIi_App SHALL ユーザーがアプリ内のAction_Ticket一覧からいつでも任意のチケットをDone（完了）に自己申告できる機能を提供する
+3. WHEN ユーザーがAction_TicketをDoneにしたとき、DagaSoreDeIi_App SHALL 完了日時を記録しAction_Logに反映する
+4. DagaSoreDeIi_App SHALL 1日の終わり（要件7で定義した集計タイミング）にOpenのまま残っているAction_Ticketを自動破棄する
+5. WHEN Action_Ticketが自動破棄されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「〇〇はできなかったけど、でも△△ができたから全然トータルOKじゃん！」という形式の肯定的なメッセージをアプリ内に表示する（△△には当日Done済みのAction_Ticketの内容を参照する）
+6. IF その日にDone済みのAction_Ticketが1件も存在しない場合、THEN 破棄メッセージは「今日はできなかったけど、明日また何かできるよ」という前向きな励ましメッセージとする
+7. DagaSoreDeIi_App SHALL 破棄されたAction_Ticketの履歴（破棄日時・行動内容）をユーザーが閲覧できる形で保持する（「消えた旨」の可視化）
+8. DagaSoreDeIi_App SHALL アプリ内のどこからでもOpen状態のAction_Ticket一覧にアクセスできるUIを提供する
