@@ -1,0 +1,208 @@
+# 要件ドキュメント
+
+## はじめに
+
+「だが、それでいい」は、「今日も何かできた」を見つけるための行動支援アプリケーションです。
+
+英語の勉強ができた日も、できなかった代わりに筋トレした日も、散歩しただけの日も、全部「今日も動いた」。習慣化できているならそれは最高。できなかった日も、別のことができていれば、それでいい。
+
+従来の習慣トラッカーアプリが「一つの習慣をストイックに継続させる」ことを目的とするのに対し、本アプリは「どんな行動も無駄じゃない」という考え方を軸に置きます。ユーザーが予定していた行動（例：英語学習）ができなかった日でも、別の行動（例：筋トレ）ができていれば、それは十分に価値があります。「できなかった」を責めるのではなく、「別のことができた」を称えるアプリです。
+
+**コンセプト**: 今日やろうとしていたことができなくても、別のことができていれば、それは十分に価値がある。ユーザーは英語が喋れないかもしれないが、代わりにマッチョになる。それでいい。
+
+---
+
+## 用語集
+
+- **DagaSoreDeIi_App**: 本アプリケーション「だが、それでいい」全体を指すシステム名。「どんな行動も無駄じゃない」を体現する行動支援アプリ
+- **User**: アプリを利用する個人ユーザー
+- **Profile**: ユーザーの属性・興味・行動傾向・心理状態などを記録したデータ。AIによる行動提案の基盤となる
+- **Goal**: ユーザーが設定する目標（例：「英語を習慣的にやりたい」）。複数設定可能。あくまで出発点であり、そこに縛られる必要はない
+- **Primary_Goal**: ユーザーが最優先として設定したGoal。出発点として機能するが、別の強みや才能が開花する可能性を妨げない
+- **Pivot_Goal**: Primary_Goalの達成が難しい日に、同じくらい価値のある別の選択肢として提案されるGoal（例：筋トレ、散歩）
+- **Flexible_Achievement**: 当初の目標でなくても、何かしら行動できたことを肯定的に評価する概念。本アプリの中心的な価値観
+- **State_Detection**: ユーザーの現在の状態（位置情報・スクリーンタイム・心理状態など）を検知する機能。v1ではアプリ起動時に実行される
+- **Trigger**: State_Detectionによって検知された、行動提案を発火させる条件（例：「アプリ起動時に2時間以上自宅にいる」）
+- **Recommendation**: TriggerをもとにAIが生成する行動提案。初回は必ずPrimary_Goalに関連した提案を行う
+- **Pivot**: ユーザーがRecommendationを拒否または無視した際に、Pivot_Goalへと提案を切り替える機能。「失敗」ではなく「別の価値ある選択肢」への切り替えを意味する。アプリ起動時に実行される
+- **Effort_Point**: 当初のGoalであれ代替のGoalであれ、1日の終わりに何かしら行動した場合に付与されるポイント。「何をやっても価値がある」というメッセージを体現する
+- **Persona_Voice**: 通知・提案のトーン＆マナー。「未来の自分（Future_Self_Model）が語りかける」スタイルを基本とし、肯定的・称賛的なトーンを重視する
+- **Learning_Engine**: ユーザーの行動結果（Yes/No）を蓄積し、次回のRecommendationを最適化するAIコンポーネント
+- **Action_Log**: ユーザーが実際に行った行動の記録。ProfileおよびLearning_Engineの更新に使用される
+- **Similar_User_Data**: 同じようなステータス・プロフィールを持つ他ユーザーの匿名化された行動・結果データ。Future_Self_Modelの構築に使用される
+- **Future_Self_Model**: Similar_User_Dataを基に構築した「未来の自分」モデル。「あなたと似た状況だった人は、筋トレを始めて3ヶ月でこうなった」という形で実データの裏付けを持つPersona_Voiceを実現する
+
+---
+
+## 要件
+
+### 要件 1: プロフィール登録とAIサポート
+
+**ユーザーストーリー:** ユーザーとして、自分の属性・興味・生活スタイルを詳細に登録したい。そうすることで、AIが自分に合ったパーソナライズされた行動提案を行えるようになる。
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL ユーザーが初回起動時にProfileを作成できるオンボーディングフローを提供する
+2. THE DagaSoreDeIi_App SHALL Profile登録項目として、氏名・年齢・職業・興味分野・生活リズム（朝型/夜型）・現在の悩みを含む
+3. WHEN ユーザーがProfileを登録したとき、THE DagaSoreDeIi_App SHALL AIがProfileを解析し、初期Pivot_Goal候補を3件以上自動生成する
+4. THE DagaSoreDeIi_App SHALL ユーザーがProfileをいつでも編集できる機能を提供する
+5. IF Profile登録が未完了の状態でユーザーがアプリを利用しようとした場合、THEN THE DagaSoreDeIi_App SHALL 未入力項目を明示し、登録完了を促すメッセージを表示する
+6. WHEN ユーザーの行動ログ（Action_Log）が蓄積されたとき、THE Learning_Engine SHALL Profileを自動更新し、行動傾向の変化を反映する
+
+---
+
+### 要件 2: 複数Goalの設定
+
+**ユーザーストーリー:** ユーザーとして、達成したい目標を複数登録したい。Goalはあくまで出発点であり、そこに縛られる必要はない。一つの目標を追いかける中で、別の強みや才能が開花することもある。どのGoalを達成しても「今日も動いた」と感じられる環境を作りたい。
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL ユーザーが最大10件のGoalを登録できる機能を提供する
+2. THE DagaSoreDeIi_App SHALL ユーザーがGoalの中から1件をPrimary_Goalとして指定できる機能を提供する
+3. THE DagaSoreDeIi_App SHALL Primary_GoalはあくまでRecommendationの出発点として機能し、ユーザーがPrimary_Goalに縛られることを強制しない
+4. WHEN ユーザーがGoalを登録するとき、THE DagaSoreDeIi_App SHALL Goal名が1文字以上50文字以内であることを検証する
+5. IF Goal名が空文字または50文字を超える場合、THEN THE DagaSoreDeIi_App SHALL 登録を拒否し、具体的なエラーメッセージを表示する
+6. THE DagaSoreDeIi_App SHALL 登録されたGoalのうちPrimary_Goal以外を自動的にPivot_Goal候補（同じくらい価値のある別の選択肢）として扱う
+7. WHEN ユーザーがGoalを削除するとき、THE DagaSoreDeIi_App SHALL 削除前に確認ダイアログを表示する
+8. IF 削除対象のGoalがPrimary_Goalである場合、THEN THE DagaSoreDeIi_App SHALL 別のGoalをPrimary_Goalに設定するよう促すメッセージを表示する
+
+---
+
+### 要件 3: 状態検知（State Detection）
+
+**ユーザーストーリー:** ユーザーとして、アプリを開いたタイミングで自分の状態をシステムに検知してほしい。そうすることで、「今日をより良くするきっかけ」につながる行動提案を受けられる。
+
+#### 受け入れ基準
+
+1. THE State_Detection SHALL 位置情報・スクリーンタイム・ユーザーの自己申告の3種類のTriggerソースをサポートする
+2. WHEN ユーザーがアプリを起動したとき、THE State_Detection SHALL ユーザーの現在の状態を検知しTriggerを評価する（v1ではアプリ起動時のみ実行。バックグラウンドでのプッシュ通知トリガーはv2以降）
+3. WHEN アプリ起動時にユーザーが2時間以上同一の自宅位置に留まっているとき、THE State_Detection SHALL 「長時間在宅」Triggerを発火する
+4. WHEN アプリ起動時にその日のスクリーンタイムにおいてGoal関連アプリの使用時間が0分のとき、THE State_Detection SHALL 「目標未着手」Triggerを発火する
+5. WHEN ユーザーが「今日は何もできていない」「どうしようか悩んでいる」などの心理状態をアプリに入力したとき、THE State_Detection SHALL 「心理的停滞」Triggerを発火する
+6. THE DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
+7. IF 位置情報の取得権限が拒否されている場合、THEN THE DagaSoreDeIi_App SHALL 位置情報Triggerを無効化し、他のTriggerソースのみで動作する
+8. WHEN 複数のTriggerが同時に発火したとき、THE State_Detection SHALL 最も優先度の高いTriggerを1件選択してRecommendationを生成する
+
+---
+
+### 要件 4: アプリ起動時のレコメンド
+
+**ユーザーストーリー:** ユーザーとして、アプリを開いたタイミングで「今日をより良くするきっかけ」となる提案を受けたい。そうすることで、その日の行動を起こすモチベーションを得られる。
+
+#### 受け入れ基準
+
+1. WHEN ユーザーがアプリを起動しTriggerが発火したとき、THE DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Voiceのトーンで初回Recommendationをアプリ内に表示する（v1ではアプリ内表示のみ。アプリを開いていないタイミングでのプッシュ通知はv2以降）
+2. THE DagaSoreDeIi_App SHALL 初回RecommendationをPrimary_Goalに関連した行動提案とする（例：「カフェに移動して英語の文法勉強しない？」）
+3. THE DagaSoreDeIi_App SHALL 初回Recommendationに「やる」「今日は別のことをやる」の2択の応答ボタンを含める
+
+---
+
+### 要件 5: 柔軟な達成とピボット機能
+
+**ユーザーストーリー:** ユーザーとして、アプリを開いたタイミングでPrimary_Goalができない日でも、同じくらい価値のある別の行動提案を受けたい。提案は常に「未来の自分」が語りかけるスタイルで行われ、「今日も何かできた」という達成感を得られる。どのGoalを達成しても、それは十分に価値がある。
+
+#### 受け入れ基準
+
+1. WHEN ユーザーがアプリを起動し初回Recommendationに「やる」と応答したとき、THE DagaSoreDeIi_App SHALL Primary_Goalの達成をサポートする詳細なアクションステップを表示する
+2. WHEN ユーザーがアプリを起動し初回Recommendationに「今日は別のことをやる」と応答したとき、THE DagaSoreDeIi_App SHALL 即座にPivot機能を起動しPivot_Goalに基づく同じくらい価値のある別の行動提案をFuture_Self_ModelのPersona_Voiceで提示する
+3. THE DagaSoreDeIi_App SHALL Pivot提案を常にFuture_Self_ModelのPersona_Voice（未来の自分の設定・語り口）で行う
+4. WHEN ユーザーが初回Recommendationを無視して別の行動（例：筋トレ）を開始したとき、THE DagaSoreDeIi_App SHALL その行動をAction_Logに記録しPivot_Goalとして認識する
+5. THE DagaSoreDeIi_App SHALL Pivot後のRecommendationに「これをやる」「別の提案を見る」の2択の応答ボタンを含める
+6. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN THE DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Voiceで提案する
+7. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、THE Learning_Engine SHALL その行動結果をAction_Logに記録し次回のRecommendation最適化に使用する
+8. THE DagaSoreDeIi_App SHALL 同一日に同一ユーザーへPivotを最大3回まで実行する
+
+---
+
+### 要件 6: プロフィールの動的更新
+
+**ユーザーストーリー:** ユーザーとして、自分の行動結果がプロフィールに自動反映されてほしい。そうすることで、AIの提案が時間とともに自分の実態に合ったものになっていく。どのGoalへの行動も等しく学習データとして活用されてほしい。
+
+#### 受け入れ基準
+
+1. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、THE DagaSoreDeIi_App SHALL Action_LogをProfileに反映し行動傾向スコアを更新する
+2. WHEN ユーザーが連続3日以上Pivot_Goalの行動を完了したとき、THE Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案するメッセージをアプリ内に表示する
+3. THE DagaSoreDeIi_App SHALL 過去30日間のAction_Logに基づいてProfileの「得意な行動パターン」を自動分析し表示する
+4. WHEN ユーザーがProfile更新の提案を承認したとき、THE DagaSoreDeIi_App SHALL Profileを更新し次回のRecommendationに反映する
+5. IF ユーザーがProfile更新の提案を拒否した場合、THEN THE DagaSoreDeIi_App SHALL 現在のProfileを維持し30日後に再度分析を実施する
+6. THE DagaSoreDeIi_App SHALL Profileの更新履歴をユーザーが閲覧できる機能を提供する
+
+---
+
+### 要件 7: 努力ポイント報酬システム
+
+**ユーザーストーリー:** ユーザーとして、当初の目標でなくても何かしら行動した日には報酬を受け取りたい。そうすることで、「今日も何かできた」という達成感を感じ、翌日への意欲を維持できる。何をやっても価値があることを実感したい。
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL 1日の終わり（デフォルト23:00）にその日の行動を集計しEffort_Pointを付与する
+2. THE DagaSoreDeIi_App SHALL Primary_Goalの行動完了に対して10 Effort_Pointを付与する
+3. THE DagaSoreDeIi_App SHALL Pivot_Goalの行動完了に対して7 Effort_Pointを付与する
+4. THE DagaSoreDeIi_App SHALL 最低限の行動（例：外出・散歩）の完了に対して3 Effort_Pointを付与する
+5. WHEN Effort_Pointが付与されたとき、THE DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Voiceのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
+6. THE DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
+7. WHEN 累計Effort_Pointが100の倍数に達したとき、THE DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
+8. IF その日に一切の行動が記録されなかった場合、THEN THE DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
+
+---
+
+### 要件 8: Future Self Modelの構築と活用
+
+**ユーザーストーリー:** ユーザーとして、「未来の自分」からのアドバイスが実データに基づいたものであってほしい。そうすることで、「あなたと似た状況だった人は、筋トレを始めて3ヶ月でこうなった」という具体的な根拠を持つ提案を受けられ、行動への信頼感と動機が高まる。
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL 同じようなステータス・プロフィールを持つ他ユーザーの行動・結果データをSimilar_User_Dataとして匿名化して収集・保持する
+2. WHEN ユーザーのProfileが登録されたとき、THE DagaSoreDeIi_App SHALL Similar_User_Dataを参照しユーザーに類似したプロフィールを持つ他ユーザーの行動パターンを抽出してFuture_Self_Modelを構築する
+3. THE DagaSoreDeIi_App SHALL Future_Self_Modelに基づき「あなたと似た状況だった人は、〇〇を始めて△ヶ月でこうなった」という形式の実データに裏付けられたPersona_Voiceメッセージを生成する
+4. WHEN Action_Logが蓄積されたとき、THE Learning_Engine SHALL Future_Self_Modelを更新しより精度の高い「未来の自分」像を反映する
+5. THE DagaSoreDeIi_App SHALL Similar_User_Dataの収集・利用について、初回利用時にユーザーの明示的な同意を取得する
+6. THE DagaSoreDeIi_App SHALL Similar_User_Dataを収集する際に個人を特定できる情報を含まないよう匿名化処理を施す
+7. IF Similar_User_Dataが十分に蓄積されていない場合（類似ユーザーが5件未満）、THEN THE DagaSoreDeIi_App SHALL Future_Self_ModelをProfileとGoalのみに基づいた推定モデルで代替する
+
+---
+
+### 要件 9: Persona_Voiceによるアプリ内メッセージ
+
+**ユーザーストーリー:** ユーザーとして、「未来の自分（Future_Self_Model）」が語りかけてくるようなユニークなメッセージをアプリ内で受け取りたい。そうすることで、行動を起こすモチベーションが高まる。習慣化できた日は称えてほしいし、別のことができた日も「それでいいよ」と言ってほしい。（v1はアプリ内メッセージのみ。プッシュ通知はv2以降）
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL すべてのアプリ内メッセージをPersona_Voice（Future_Self_Modelが語りかけるスタイル）で生成する
+2. THE DagaSoreDeIi_App SHALL Persona_Voiceの文体として、一人称「俺（私）」を使用し、ユーザーへの呼びかけを「お前（あなた）」とする口語体を採用する
+3. WHEN Triggerが発火したとき、THE DagaSoreDeIi_App SHALL ProfileおよびFuture_Self_ModelおよびAction_Logを参照してPersona_Voiceをパーソナライズしたメッセージを生成する
+4. THE DagaSoreDeIi_App SHALL メッセージのバリエーションを1つのTriggerにつき最低5パターン保持し、同一パターンが連続して使用されないよう制御する
+5. WHERE ユーザーがメッセージのトーンを「厳しめ」「普通」「優しめ」から選択している場合、THE DagaSoreDeIi_App SHALL 選択されたトーンに応じてPersona_Voiceの語調を調整する
+6. THE DagaSoreDeIi_App SHALL メッセージの生成にAIを使用し、ユーザーのProfileとFuture_Self_Modelと直近のAction_Logに基づいた文脈のあるメッセージを生成する
+7. THE DagaSoreDeIi_App SHALL Primary_Goalを達成した日のメッセージに「今日もできたね、最高」という称賛メッセージを含める
+8. THE DagaSoreDeIi_App SHALL Pivot_Goalを達成した日のメッセージに「英語できなかったけど、筋トレできたじゃん。それでいいよ」のような肯定的なメッセージを含める
+
+---
+
+### 要件 10: Learning Engineによる最適化
+
+**ユーザーストーリー:** ユーザーとして、アプリが自分の行動パターンを学習し、時間とともにより的確な提案をしてほしい。そうすることで、的外れな提案が減り、「今日も何かできた」につながる行動に移りやすくなる。
+
+#### 受け入れ基準
+
+1. THE Learning_Engine SHALL ユーザーのAction_Log（Yes/No応答・実際の行動・時間帯・曜日）を蓄積し行動モデルを構築する
+2. WHEN Action_Logが7件以上蓄積されたとき、THE Learning_Engine SHALL Recommendationの生成アルゴリズムをパーソナライズされたモデルに切り替える
+3. THE Learning_Engine SHALL 曜日・時間帯ごとのGoal達成率を分析し、達成率の高い時間帯を優先してTriggerを評価する
+4. WHEN 特定のPivot_Goalへの応答率が80%を超えたとき、THE Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案する
+5. THE DagaSoreDeIi_App SHALL Learning_Engineの学習状況（「あなたの行動パターンを〇〇%学習しました」）をユーザーに可視化する
+6. IF ユーザーが学習データのリセットを要求した場合、THEN THE DagaSoreDeIi_App SHALL 確認ダイアログを表示した後にAction_LogおよびLearning_Engineのモデルをリセットする
+
+---
+
+### 要件 11: データの永続化とプライバシー
+
+**ユーザーストーリー:** ユーザーとして、自分のデータが安全に保管され、デバイスを変えても引き継がれるようにしたい。また、位置情報などのセンシティブなデータの扱いを自分でコントロールしたい。
+
+#### 受け入れ基準
+
+1. THE DagaSoreDeIi_App SHALL ユーザーのProfile・Goal・Action_Log・Effort_Pointをローカルストレージに永続化する
+2. WHEN ユーザーがアカウントを作成してログインしたとき、THE DagaSoreDeIi_App SHALL データをクラウドに暗号化して同期する
+3. IF クラウド同期中にネットワークエラーが発生した場合、THEN THE DagaSoreDeIi_App SHALL ローカルデータを保持し次回接続時に再同期を試みる
+4. THE DagaSoreDeIi_App SHALL 位置情報・スクリーンタイムなどのセンシティブデータの収集について、初回利用時にユーザーの明示的な同意を取得する
+5. THE DagaSoreDeIi_App SHALL ユーザーがいつでも収集済みのセンシティブデータを削除できる機能を提供する
+6. WHEN 複数デバイス間でデータが競合した場合、THE DagaSoreDeIi_App SHALL 最新のタイムスタンプを持つデータを優先して採用する
