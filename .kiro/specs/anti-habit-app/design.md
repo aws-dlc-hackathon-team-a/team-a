@@ -125,26 +125,52 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Scheduler as スケジューラー (EventBridge)
+    participant Scheduler as スケジューラー (EventBridge・毎時0分起動)
     participant TicketPointSvc as Ticket & Point Service\n(Lambda)
     participant RecommendSvc as Recommendation Service\n(Lambda)
     participant App as モバイルApp
 
-    Scheduler->>TicketPointSvc: 集計タイミング到達（デフォルト24:00）
-    TicketPointSvc->>TicketPointSvc: Done済みAction_Ticket取得
-    TicketPointSvc->>TicketPointSvc: Effort_Point計算\n(Primary:10pt / Pivot:7pt / 最低限:3pt)
-    TicketPointSvc->>RecommendSvc: 肯定メッセージ生成リクエスト
-    Note over RecommendSvc: PersonaMessageモジュールで\nBedrock呼び出し
-    RecommendSvc-->>TicketPointSvc: Persona_Message
-    TicketPointSvc->>TicketPointSvc: Open残チケット自動破棄
-    TicketPointSvc-->>App: Effort_Point + メッセージ通知（アプリ内）
+    Scheduler->>TicketPointSvc: 毎時0分に起動
+    TicketPointSvc->>TicketPointSvc: dailyResetTimeUtcが現在UTC時刻と一致する\nユーザーを抽出
+    loop 対象ユーザーごとに処理
+        TicketPointSvc->>TicketPointSvc: Done済みAction_Ticket取得
+        TicketPointSvc->>TicketPointSvc: Effort_Point計算\n(EFFORT_POINT_MAP[goalType][actionLevel])
+        TicketPointSvc->>RecommendSvc: 肯定メッセージ生成リクエスト
+        Note over RecommendSvc: PersonaMessageモジュールで\nBedrock呼び出し
+        RecommendSvc-->>TicketPointSvc: Persona_Message
+        TicketPointSvc->>TicketPointSvc: Open残チケット自動破棄
+        TicketPointSvc-->>App: デイリーサマリー通知（アプリ内）
+    end
 ```
 
 ---
 
 ## コンポーネントとインターフェース
 
-### 0. Auth Service（Amazon Cognito）
+### 共通型定義
+
+design.md全体で使用する型エイリアスをここで一元定義する。
+
+```typescript
+// Goal種別：primary（Primary_Goal）/ pivot（Pivot_Goal）
+type GoalType = "primary" | "pivot";
+
+// 行動レベル：normal（通常行動）/ minimal（最低限行動）
+type ActionLevel = "normal" | "minimal";
+
+// Recommendation応答種別
+type ResponseType = "do_it" | "alternative" | "goal_change" | "free_input";
+
+// Effort_Pointポイントマップ
+const EFFORT_POINT_MAP: Record<GoalType, Record<ActionLevel, number>> = {
+  primary: { normal: 10, minimal: 5 },
+  pivot: { normal: 7, minimal: 3 },
+};
+```
+
+---
+
+### 1. Auth Service（Amazon Cognito）
 
 ユーザーの認証・アカウント管理を担当するサービス。Amazon Cognitoのユーザープールを使用し、メールアドレス＋パスワード認証を提供する。発行されたCognito `sub`（UUID）がシステム全体のユーザーIDとして使用される。
 
@@ -196,7 +222,7 @@ interface AuthSession {
 
 ---
 
-### 1. User & Goal Service（Lambda）
+### 2. User & Goal Service（Lambda）
 
 ユーザーのプロフィール情報とGoalの管理を担当するLambda。User DBに対するCRUD操作を一元管理する。
 
@@ -224,7 +250,7 @@ interface GoalService {
 }
 ```
 
-### 2. State Detection Module（クライアントサイド）
+### 3. State Detection Module（クライアントサイド）
 
 アプリ起動時にユーザーの状態を検知し、Triggerを評価するモジュール。
 
@@ -250,7 +276,57 @@ interface StateDetectionModule {
 }
 ```
 
-### 4. Recommendation Service（Lambda）
+### 3. Local Storage Module（クライアントサイド・SQLite）
+
+オフライン時のAction_Ticket完了申告を一時保存し、オンライン復帰時にサーバーへ同期するモジュール。実装には**expo-sqlite**（React Native）を使用する。
+
+```typescript
+interface LocalStorageModule {
+  // オフライン完了申告を保存
+  savePendingCompletion(ticketId: string, completedAt: string): Promise<void>;
+
+  // 未同期の完了申告を取得
+  getPendingCompletions(): Promise<PendingCompletion[]>;
+
+  // 同期完了後に削除
+  removePendingCompletion(ticketId: string): Promise<void>;
+
+  // オンライン復帰時に一括同期
+  syncPendingCompletions(): Promise<SyncResult>;
+
+  // 前回起動時の位置情報・タイムスタンプを保存（State Detection用）
+  saveLastLaunchState(location: Location | null, detectedAt: string): Promise<void>;
+
+  // 前回起動時の状態を取得
+  getLastLaunchState(): Promise<LastLaunchState | null>;
+}
+
+interface PendingCompletion {
+  ticketId: string;
+  completedAt: string;
+  savedAt: string;
+}
+
+interface LastLaunchState {
+  location: Location | null;
+  detectedAt: string;
+}
+
+interface SyncResult {
+  synced: number;
+  failed: number;
+}
+```
+
+**オフライン時の挙動:**
+
+- Action_Ticket完了申告：SQLiteに保存 → オンライン復帰時に自動同期
+- 新規Action_Ticket作成（Recommendation応答）：オンライン必須。オフライン時は「接続が必要です」を表示
+- 前回起動位置情報：SQLiteに保存（State Detectionの滞在判定に使用）
+
+---
+
+### 5. Recommendation Service（Lambda）
 
 Triggerに基づいてRecommendationを生成するLambda。Learning Engine・Future Self Model・Persona Messageの3つのモジュールを内包し、Lambda間の連鎖呼び出しなしに1リクエスト内で完結する。
 
@@ -324,13 +400,13 @@ interface PersonaMessageModule {
   generateDiscardMessage(discardResult: DiscardResult): Promise<PersonaMessage>;
 
   // Goal達成メッセージ生成
-  generateAchievementMessage(goalType: "primary" | "pivot" | "minimal"): Promise<PersonaMessage>;
+  generateAchievementMessage(goalType: GoalType, actionLevel: ActionLevel): Promise<PersonaMessage>;
 }
 ```
 
 ````
 
-### 5. Ticket & Point Service（Lambda）
+### 6. Ticket & Point Service（Lambda）
 
 Action_Ticketのライフサイクル管理とEffort_Pointの計算・付与・集計を担当するLambda。EventBridgeでスケジュール起動され、Persona_Message生成はRecommendation Serviceに委譲する。
 
@@ -368,6 +444,8 @@ interface User {
   emailVerified: boolean; // メールアドレス確認済みフラグ
   createdAt: string; // ISO 8601
   updatedAt: string;
+  timezoneOffset: number; // UTCオフセット（分）例：JST=+540, PST=-480
+  dailyResetTimeUtc: number; // 集計UTC時刻（0〜23の整数）。ユーザー設定時刻をUTC変換して保存
   consentGiven: boolean; // Similar_User_Data利用同意
   sensitiveDataConsent: {
     location: boolean;
@@ -482,7 +560,8 @@ interface Recommendation {
   userId: string;
   triggerId: string;
   goalId: string;
-  goalType: "primary" | "pivot" | "minimal";
+  goalType: GoalType; // 共通型定義参照
+  actionLevel: ActionLevel; // 共通型定義参照
   actionDescription: string; // 提案内容
   personaMessage: PersonaMessage;
   responseOptions: ResponseOption[];
@@ -514,8 +593,8 @@ interface ActionTicket {
   userId: string;
   recommendationId: string | null; // 自由入力の場合はnull
   goalId: string;
-  goalType: "primary" | "pivot"; // 2種類に整理
-  actionLevel: "normal" | "minimal"; // normal=通常行動 / minimal=最低限行動
+  goalType: GoalType; // 共通型定義参照
+  actionLevel: ActionLevel; // 共通型定義参照
   actionDescription: string;
   status: "open" | "done" | "discarded";
   createdAt: string;
@@ -537,9 +616,9 @@ interface EffortPointRecord {
   recordId: string;
   userId: string;
   ticketId: string; // Action_Ticketと1対1で紐付く
-  goalType: "primary" | "pivot";
-  actionLevel: "normal" | "minimal";
-  pointsAwarded: number; // primary/normal:10 / primary/minimal:5 / pivot/normal:7 / pivot/minimal:3
+  goalType: GoalType; // 共通型定義参照
+  actionLevel: ActionLevel; // 共通型定義参照
+  pointsAwarded: number; // EFFORT_POINT_MAP[goalType][actionLevel] で決定
   date: string; // YYYY-MM-DD
   cumulativeTotal: number;
   personaMessage: PersonaMessage;
@@ -577,8 +656,8 @@ interface ActionLogEntry {
   userId: string;
   ticketId: string;
   goalId: string;
-  goalType: "primary" | "pivot";
-  actionLevel: "normal" | "minimal";
+  goalType: GoalType; // 共通型定義参照
+  actionLevel: ActionLevel; // 共通型定義参照
   actionDescription: string;
   responseType: ResponseType;
   completedAt: string;
@@ -835,9 +914,18 @@ _For any_ 日次集計タイミングにおいてOpenステータスのまま残
 
 ### ネットワーク障害
 
-- オフライン時はAction_Ticketの完了申告をLocal Storage（オフライン一時保存）に保存し、オンライン復帰時にDynamoDBへ同期する
-- Local StorageはオフラインのバッファとしてのみUse。Profile・Goal・Action_Logなどのマスターデータは常にDynamoDB（User DB / Action Log DB）が正とする
+- オフライン時はAction_Ticketの完了申告をSQLite（expo-sqlite）に保存し、オンライン復帰時にDynamoDBへ自動同期する
+- 新規Action_Ticketの作成（Recommendation応答）はオンライン必須。オフライン時は「インターネット接続が必要です」を表示する
 - Recommendationの生成はオンライン必須とし、オフライン時はキャッシュされた最後のRecommendationを表示するか、接続を促すメッセージを表示する
+- Profile・Goal・Action_Logなどのマスターデータは常にDynamoDB（User DB / Action Log DB）が正とする
+
+### EventBridgeタイムゾーン処理
+
+- 集計時刻はユーザーが**0時〜23時の整数時刻（1時間単位）**で設定する（デフォルト：0時）
+- EventBridgeは**毎時0分**に固定起動（`cron(0 * * * ? *)`）
+- Lambda側でUser DBを参照し、`dailyResetTimeUtc`が現在のUTC時刻（時）と一致するユーザーを抽出して処理する
+- ユーザーが集計時刻を変更した場合、設定時刻とタイムゾーンオフセットからUTC時刻を再計算して`dailyResetTimeUtc`を更新する（EventBridgeの設定変更は不要）
+- タイムゾーン情報はProfile登録時にデバイスのロケールから自動取得し、`timezoneOffset`に保存する
 
 ---
 

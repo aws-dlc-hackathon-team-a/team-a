@@ -145,10 +145,11 @@
    - goalType=pivot / actionLevel=minimal：3 Effort_Point
 3. WHEN 自由入力でAction_Ticketを生成するとき、DagaSoreDeIi_App SHALL ユーザーがgoalType（「Primary_Goal」「Pivot_Goal」）とactionLevel（「normal」「minimal」）を選択できるUIを提供する（選択された組み合わせに基づいてEffort_Pointが決定される）
 4. WHEN Effort_Pointが付与されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
-5. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日の累計Effort_Pointをサマリー表示する
-6. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
-7. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
-8. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
+5. DagaSoreDeIi_App SHALL 1日の終わりの集計時刻をユーザーが0時〜23時の整数時刻（1時間単位）で設定できる機能を提供する（デフォルト：24:00＝0時）
+6. DagaSoreDeIi_App SHALL 設定された集計時刻にその日の累計Effort_Pointをサマリー表示する
+7. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
+8. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
+9. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
 
 ---
 
