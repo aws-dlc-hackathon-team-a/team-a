@@ -125,7 +125,7 @@
 #### 受け入れ基準
 
 1. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、DagaSoreDeIi_App SHALL Action_LogをProfileに反映し行動傾向スコアを自動更新する
-2. WHEN ユーザーが連続3日以上Pivot_Goalの行動を完了したとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案するメッセージをアプリ内に表示する
+2. WHEN ユーザーが連続3日以上Pivot_Goalの行動を完了したとき、またはそのPivot_Goalへの応答率が80%を超えたとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案するメッセージをアプリ内に表示する
 3. DagaSoreDeIi_App SHALL 過去30日間のAction_Logに基づいてProfileの「得意な行動パターン」を自動分析し表示する
 4. DagaSoreDeIi_App SHALL Profileの更新履歴をユーザーが閲覧できる機能を提供する
 
@@ -192,8 +192,7 @@
 
 1. Learning_Engine SHALL ユーザーのAction_Log（Yes/No応答・Action_TicketのDone記録・時間帯・曜日・対象Goal種別）を蓄積し行動モデルを構築する
 2. WHEN Action_Logが7件以上蓄積されたとき、Learning_Engine SHALL Recommendationの生成アルゴリズムをパーソナライズされたモデルに切り替える
-3. WHEN 特定のPivot_Goalへの応答率が80%を超えたとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案する
-4. IF ユーザーが学習データのリセットを要求した場合、THEN DagaSoreDeIi_App SHALL 確認ダイアログを表示した後にAction_LogおよびLearning_Engineのモデルをリセットする
+3. IF ユーザーが学習データのリセットを要求した場合、THEN DagaSoreDeIi_App SHALL 確認ダイアログを表示した後にAction_LogおよびLearning_Engineのモデルをリセットする
 
 ---
 

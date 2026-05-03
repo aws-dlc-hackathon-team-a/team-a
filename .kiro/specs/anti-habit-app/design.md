@@ -38,6 +38,7 @@ graph TB
         UserGoalSvc["User & Goal Service\n(Lambda)"]
         RecommendSvc["Recommendation Service\n(Lambda)"]
         TicketPointSvc["Ticket & Point Service\n(Lambda)"]
+        SimilarUserBatch["Similar User Batch\n(Lambda・月次)"]
     end
 
     subgraph AI["AI / ML Layer"]
@@ -67,6 +68,9 @@ graph TB
     TicketPointSvc --> ActionLogDB
     TicketPointSvc --> UserDB
     TicketPointSvc --> RecommendSvc
+    SimilarUserBatch --> ActionLogDB
+    SimilarUserBatch --> UserDB
+    SimilarUserBatch --> SimilarUserDB
 ```
 
 ### アプリ起動時のフロー
@@ -143,9 +147,29 @@ sequenceDiagram
     end
 ```
 
----
+### 月次Similar_User_Dataバッチ処理フロー
 
-## コンポーネントとインターフェース
+```mermaid
+sequenceDiagram
+    participant Scheduler as スケジューラー (EventBridge・毎月1日0時UTC)
+    participant SimilarUserBatch as Similar User Batch\n(Lambda)
+
+    Scheduler->>SimilarUserBatch: 毎月1日0時UTCに起動
+    SimilarUserBatch->>SimilarUserBatch: Action_Log DBから全ユーザーの\n直近30日分ActionLogを取得
+    SimilarUserBatch->>SimilarUserBatch: ユーザーごとにプロフィール類似度を計算\n（年齢・職業・興味・ライフスタイル）
+    SimilarUserBatch->>SimilarUserBatch: 類似ユーザーの行動パターン・成果を集約
+    SimilarUserBatch->>SimilarUserBatch: 個人特定情報を除外して匿名化処理
+    SimilarUserBatch->>SimilarUserBatch: Similar User DBにupsert
+    SimilarUserBatch->>SimilarUserBatch: 各ユーザーのFutureSelfModelを再構築\nUser DBに保存
+```
+
+**設計方針:**
+
+- Recommendationの生成（リアルタイム）はUser DBに保存済みのFutureSelfModelを参照するため、バッチ処理の完了を待たない
+- バッチ処理はFutureSelfModelの精度向上のみを担う（月1回の更新で十分）
+- バッチ処理中にエラーが発生した場合は前月のFutureSelfModelをそのまま使用し続ける
+
+---
 
 ### 共通型定義
 
@@ -893,9 +917,9 @@ _For any_ いずれかのGoalに関連する行動が完了したとき、Profil
 
 ### Property 12: Pivot_Goal昇格提案の閾値
 
-_For any_ Pivot_Goalに対して、連続3日以上の完了記録がある場合、またはそのPivot_Goalへの応答率が80%を超えた場合、Learning_EngineはそのゴールをPrimary_Goal候補として昇格提案しなければならない
+_For any_ Pivot_Goalに対して、連続3日以上の完了記録がある場合、**または**そのPivot_Goalへの応答率が80%を超えた場合、Learning_EngineはそのゴールをPrimary_Goal候補として昇格提案しなければならない
 
-**Validates: Requirements 6.2, 10.4**
+**Validates: Requirements 6.2, 10.3**
 
 ---
 
