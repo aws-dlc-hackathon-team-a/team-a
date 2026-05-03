@@ -241,4 +241,4 @@
 5. WHEN Action_Ticketが自動破棄されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「〇〇はできなかったけど、でも△△ができたから全然トータルOKじゃん！」という形式の肯定的なメッセージをアプリ内に表示する（△△には当日Done済みのAction_Ticketの内容を参照する）
 6. IF その日にDone済みのAction_Ticketが1件も存在しない場合、THEN 破棄メッセージは「今日はできなかったけど、明日また何かできるよ」という前向きな励ましメッセージとする
 7. DagaSoreDeIi_App SHALL 破棄されたAction_Ticketの履歴（破棄日時・行動内容）をユーザーが閲覧できる形で保持する（「消えた旨」の可視化）
-8. DagaSoreDeIi_App SHALL アプリ内のどこからでもOpen状態のAction_Ticket一覧にアクセスできるUIを提供する
+8. DagaSoreDeIi_App SHALL ホーム画面にOpen状態のAction_Ticket一覧を表示し、ユーザーがいつでも完了申告できるUIを提供する
