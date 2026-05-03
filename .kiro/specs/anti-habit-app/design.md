@@ -18,6 +18,22 @@
 - アプリ起動時のState_Detection（バックグラウンドトリガーはv2以降）
 - モバイルアプリ（iOS / Android）
 
+### 技術スタック
+
+| レイヤー           | 技術                                                    |
+| ------------------ | ------------------------------------------------------- |
+| モバイル           | React Native + Expo + TypeScript                        |
+| モバイルテスト     | Jest + React Native Testing Library + fast-check（PBT） |
+| バックエンド       | TypeScript + Hono（AWS Lambda上で動作）                 |
+| バックエンドテスト | Vitest + fast-check（PBT）                              |
+| 認証               | Amazon Cognito                                          |
+| API Gateway        | Amazon API Gateway                                      |
+| データベース       | Amazon DynamoDB                                         |
+| AI/LLM             | Amazon Bedrock                                          |
+| MLモデル           | Amazon SageMaker                                        |
+| スケジューラー     | Amazon EventBridge                                      |
+| ローカルストレージ | expo-sqlite（SQLite）                                   |
+
 ---
 
 ## アーキテクチャ
@@ -1102,7 +1118,7 @@ _For any_ 日次集計タイミングにおいてOpenステータスのまま残
 - Action_Ticketステータス遷移
 - BehaviorModel達成率計算
 
-**フレームワーク:** Jest（React Native）/ pytest（バックエンドPython）
+**フレームワーク:** Jest + React Native Testing Library（モバイル）/ Vitest（バックエンド）
 
 **方針:**
 
@@ -1116,8 +1132,7 @@ _For any_ 日次集計タイミングにおいてOpenステータスのまま残
 
 **フレームワーク:**
 
-- TypeScript/React Native: `fast-check`
-- Python（バックエンド）: `hypothesis`
+- TypeScript（モバイル・バックエンド共通）: `fast-check`
 
 **設定:**
 
