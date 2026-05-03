@@ -708,6 +708,97 @@ interface BehaviorModel {
 
 ---
 
+## DynamoDB テーブル設計
+
+DynamoDBはアクセスパターン駆動で設計する。以下に各テーブルのPK・SK・GSIと主要クエリパターンを定義する。
+
+---
+
+### User DB
+
+**テーブル名**: `Users`
+
+| 属性     | 役割 | 型     |
+| -------- | ---- | ------ |
+| `userId` | PK   | String |
+
+**格納エンティティ**: User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel
+
+単一テーブル設計（Single Table Design）を採用し、`entityType`属性でエンティティを区別する。
+
+| entityType          | SK                    | 用途                      |
+| ------------------- | --------------------- | ------------------------- |
+| `USER`              | `USER`                | Userレコード              |
+| `PROFILE`           | `PROFILE`             | Profileレコード           |
+| `PROFILE_HISTORY`   | `HISTORY#<updatedAt>` | Profile更新履歴（時系列） |
+| `GOAL`              | `GOAL#<goalId>`       | Goalレコード              |
+| `TRIGGER_SETTINGS`  | `TRIGGER_SETTINGS`    | Trigger設定               |
+| `FUTURE_SELF_MODEL` | `FUTURE_SELF_MODEL`   | FutureSelfModel           |
+| `BEHAVIOR_MODEL`    | `BEHAVIOR_MODEL`      | BehaviorModel             |
+
+**GSI**:
+
+| GSI名            | PK                  | SK       | 用途                                            |
+| ---------------- | ------------------- | -------- | ----------------------------------------------- |
+| `GSI-DailyReset` | `dailyResetTimeUtc` | `userId` | EventBridge集計時に対象ユーザーを時刻で絞り込む |
+
+---
+
+### Action Log DB
+
+**テーブル名**: `ActionLogs`
+
+| 属性          | 役割 | 型                 |
+| ------------- | ---- | ------------------ |
+| `userId`      | PK   | String             |
+| `completedAt` | SK   | String（ISO 8601） |
+
+**格納エンティティ**: ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone
+
+| entityType      | SK                              | 用途                        |
+| --------------- | ------------------------------- | --------------------------- |
+| `ACTION_LOG`    | `LOG#<completedAt>`             | ActionLogEntry（時系列）    |
+| `TICKET`        | `TICKET#<createdAt>#<ticketId>` | ActionTicket                |
+| `EFFORT_POINT`  | `POINT#<awardedAt>`             | EffortPointRecord（時系列） |
+| `DAILY_SUMMARY` | `SUMMARY#<date>`                | DailySummary（日次）        |
+| `MILESTONE`     | `MILESTONE#<achievedAt>`        | Milestone                   |
+
+**主要クエリパターンと対応するアクセス方法**:
+
+| クエリ                             | アクセス方法                                               |
+| ---------------------------------- | ---------------------------------------------------------- |
+| ユーザーの過去30日のAction_Log取得 | PK=userId, SK begins_with `LOG#`, フィルタで日付範囲指定   |
+| 特定日のDone済みAction_Ticket取得  | PK=userId, SK begins_with `TICKET#<date>`                  |
+| Open状態のAction_Ticket一覧        | PK=userId, SK begins_with `TICKET#`, フィルタ status=open  |
+| 週間・月間のEffort_Point履歴       | PK=userId, SK begins_with `POINT#`, 期間フィルタ           |
+| 曜日・時間帯別達成率分析           | PK=userId, SK begins_with `LOG#`, 全件取得後Lambda内で集計 |
+
+**GSI**:
+
+| GSI名                | PK         | SK       | 用途                                         |
+| -------------------- | ---------- | -------- | -------------------------------------------- |
+| `GSI-TicketByStatus` | `userId`   | `status` | Open/Done/Discardedでチケットを絞り込む      |
+| `GSI-TicketById`     | `ticketId` | `userId` | ticketIdから直接チケットを取得（完了申告時） |
+
+---
+
+### Similar User DB
+
+**テーブル名**: `SimilarUsers`
+
+| 属性           | 役割 | 型     |
+| -------------- | ---- | ------ |
+| `anonymizedId` | PK   | String |
+| `goalCategory` | SK   | String |
+
+**GSI**:
+
+| GSI名                | PK             | SK                       | 用途                                             |
+| -------------------- | -------------- | ------------------------ | ------------------------------------------------ |
+| `GSI-ByGoalCategory` | `goalCategory` | `profileSimilarityScore` | 同じゴールカテゴリの類似ユーザーを類似度順に取得 |
+
+---
+
 ## 正確性プロパティ（Correctness Properties）
 
 _プロパティとは、システムのすべての有効な実行において真であるべき特性または振る舞いです。つまり、システムが何をすべきかについての形式的な記述です。プロパティは、人間が読める仕様と機械で検証可能な正確性保証の橋渡しとなります。_
