@@ -668,3 +668,289 @@ interface BehaviorModel {
 
 ## 正確性プロパティ（Correctness Properties）
 
+
+*プロパティとは、システムのすべての有効な実行において真であるべき特性または振る舞いです。つまり、システムが何をすべきかについての形式的な記述です。プロパティは、人間が読める仕様と機械で検証可能な正確性保証の橋渡しとなります。*
+
+### Property 1: Profile登録時のPivot_Goal候補自動生成
+
+*For any* 有効なProfileが登録されたとき、システムは必ず3件以上のPivot_Goal候補を自動生成しなければならない
+
+**Validates: Requirements 1.3**
+
+---
+
+### Property 2: 未完了Profileの欠損フィールド検出
+
+*For any* 必須フィールドの一部が欠けた不完全なProfile入力に対して、システムはすべての未入力フィールドを正確に特定して報告しなければならない
+
+**Validates: Requirements 1.5**
+
+---
+
+### Property 3: Primary_Goal設定の一意性
+
+*For any* ユーザーのGoal一覧において、1件をPrimary_Goalとして設定した後は、必ずちょうど1件のGoalのみがisPrimary=trueとなっていなければならない
+
+**Validates: Requirements 2.2**
+
+---
+
+### Property 4: Pivot_Goal候補の完全性
+
+*For any* Primary_Goalが設定されたGoal一覧において、Primary_Goal以外のすべてのGoalがPivot_Goal候補として分類されていなければならない
+
+**Validates: Requirements 2.3**
+
+---
+
+### Property 5: 長時間在宅Triggerの閾値
+
+*For any* 自宅での滞在時間において、120分以上の場合は「長時間在宅」Triggerが発火し、120分未満の場合は発火しないという関係が成立しなければならない
+
+**Validates: Requirements 3.3**
+
+---
+
+### Property 6: 複数Trigger発火時の優先度選択
+
+*For any* 同時に発火した複数のTriggerの集合において、選択されるTriggerはちょうど1件であり、かつその集合の中で最も高い優先度を持つTriggerでなければならない
+
+**Validates: Requirements 3.7**
+
+---
+
+### Property 7: 初回RecommendationとPrimary_Goalの関連性
+
+*For any* Primary_Goalが設定されたユーザーに対して、Triggerが発火したときに生成される初回Recommendationは、必ずそのPrimary_Goalに関連した行動提案でなければならない
+
+**Validates: Requirements 4.2**
+
+---
+
+### Property 8: Recommendation応答によるAction_Ticket生成
+
+*For any* Recommendationへの有効な応答（やる/いいえ（別の方法で）/目標チェンジ/自由入力）に対して、行動内容・対象Goal・生成日時を含むAction_TicketがOpen（未完了）ステータスで生成されなければならない
+
+**Validates: Requirements 4.4, 5.6, 12.1**
+
+---
+
+### Property 9: Action_Ticket完了のAction_Log記録
+
+*For any* Action_TicketがDoneに更新されたとき、完了日時が記録され、かつAction_Logに対応するエントリが追加されていなければならない
+
+**Validates: Requirements 5.9, 12.3**
+
+---
+
+### Property 10: Pivot提案のPersona_Messageスタイル
+
+*For any* Pivot提案（Pivot_Goal・最低限行動を含む）において、メッセージは必ずFuture_Self_ModelのPersona_Messageスタイル（一人称「俺/私」、二人称「お前/あなた」の口語体）で生成されなければならない
+
+**Validates: Requirements 5.3, 9.1, 9.2**
+
+---
+
+### Property 11: Goal完了によるProfile行動傾向スコア更新
+
+*For any* いずれかのGoalに関連する行動が完了したとき、ProfileのbehaviorTendencyScoreが更新されていなければならない
+
+**Validates: Requirements 6.1**
+
+---
+
+### Property 12: Pivot_Goal昇格提案の閾値
+
+*For any* Pivot_Goalに対して、連続3日以上の完了記録がある場合、またはそのPivot_Goalへの応答率が80%を超えた場合、Learning_EngineはそのゴールをPrimary_Goal候補として昇格提案しなければならない
+
+**Validates: Requirements 6.2, 10.4**
+
+---
+
+### Property 13: Effort_Pointのゴール種別別計算
+
+*For any* Done済みAction_Ticketの集合において、Primary_Goalのチケットには10ポイント、Pivot_Goalのチケットには7ポイント、最低限行動のチケットには3ポイントが正確に付与され、合計ポイントはこれらの総和と一致しなければならない
+
+**Validates: Requirements 7.1, 7.2, 7.3, 7.4**
+
+---
+
+### Property 14: マイルストーン達成の検出
+
+*For any* 累計Effort_Pointが100の倍数に達したとき、特別な達成メッセージとバッジが生成されなければならない
+
+**Validates: Requirements 7.7**
+
+---
+
+### Property 15: Future_Self_Model構築
+
+*For any* 登録されたProfileに対して、Similar_User_Dataを参照してFuture_Self_Modelが構築されなければならない（類似ユーザーが5件未満の場合はフォールバックモデルを使用）
+
+**Validates: Requirements 8.2, 8.7**
+
+---
+
+### Property 16: Similar_User_Dataの匿名性
+
+*For any* Similar_User_Dataとして収集されたレコードは、氏名・メールアドレス・電話番号などの個人を特定できる情報フィールドを含んではならない
+
+**Validates: Requirements 8.6**
+
+---
+
+### Property 17: Action_Log蓄積によるFuture_Self_Model更新
+
+*For any* 新しいAction_Logエントリが追加されたとき、対応するFuture_Self_ModelのupdatedAtタイムスタンプが更新されていなければならない
+
+**Validates: Requirements 8.4**
+
+---
+
+### Property 18: Learning_Engineのパーソナライズ切り替え
+
+*For any* ユーザーのAction_Logが7件以上蓄積されたとき、BehaviorModelのisPersonalizedフラグがtrueになっていなければならない
+
+**Validates: Requirements 10.2**
+
+---
+
+### Property 19: 時間帯別達成率の正確な分析
+
+*For any* Action_Logデータセットにおいて、曜日・時間帯ごとの達成率分析は、各スロットの完了数/試行数の比率を正確に反映していなければならない
+
+**Validates: Requirements 10.3**
+
+---
+
+### Property 20: 1日の終わりのOpen_Ticket自動破棄
+
+*For any* 日次集計タイミングにおいてOpenステータスのまま残っているAction_Ticketは、すべてdiscardedステータスに遷移しなければならない
+
+**Validates: Requirements 12.4**
+
+---
+
+## エラーハンドリング
+
+### 位置情報権限拒否
+
+- 位置情報の取得権限が拒否された場合、位置情報Triggerを無効化し、他のTriggerソース（自己申告）のみで動作を継続する
+- ユーザーには権限が拒否されている旨を通知し、設定変更を促すオプションを提示する
+
+### Profile未完了状態
+
+- オンボーディング未完了のユーザーがメイン機能にアクセスしようとした場合、未入力フィールドを明示してオンボーディング画面にリダイレクトする
+- 部分的に入力されたProfileデータは保存し、再開時に引き継ぐ
+
+### Similar_User_Data不足
+
+- 類似ユーザーが5件未満の場合、フォールバックモデル（ProfileとGoalのみに基づく推定）を使用する
+- フォールバックモデル使用中であることをシステム内部でフラグ管理し、データが蓄積され次第自動的に通常モデルに切り替える
+
+### AI/LLM呼び出し失敗
+
+- Persona_Message生成のためのLLM呼び出しが失敗した場合、事前定義されたテンプレートメッセージにフォールバックする
+- テンプレートメッセージもPersona_Messageのトーン（一人称「俺/私」、二人称「お前/あなた」）を維持する
+- エラーはログに記録し、リトライ（最大3回、指数バックオフ）を実施する
+
+### Pivot_Goal候補なし
+
+- 「目標チェンジ」選択時にPivot_Goal候補が存在しない場合、ProfileのinterestsとlifestyleTypeとcurrentConcernsを参照してAIが即席のPivot候補を生成する
+- AI生成も失敗した場合、最低限の行動（「5分だけ外の空気を吸いに行く」等）を提案する
+
+### 学習データリセット
+
+- リセット操作は確認ダイアログを必須とし、誤操作を防ぐ
+- リセット後はAction_LogとBehaviorModelをクリアし、isPersonalized=falseに戻す
+- Future_Self_Modelはリセット対象外（Similar_User_Dataに基づくため）
+
+### ネットワーク障害
+
+- オフライン時はAction_Ticketの完了申告をローカルに保存し、オンライン復帰時に同期する
+- Recommendationの生成はオンライン必須とし、オフライン時はキャッシュされた最後のRecommendationを表示するか、接続を促すメッセージを表示する
+
+---
+
+## テスト戦略
+
+### 概要
+
+本アプリはビジネスロジック（ポイント計算・Trigger評価・Goal分類・Learning_Engine）とAI/LLM連携の両方を含むため、**ユニットテスト**・**プロパティベーステスト**・**統合テスト**の3層アプローチを採用します。
+
+### ユニットテスト
+
+純粋な関数・ビジネスロジックに対して具体的な例を用いてテストします。
+
+**対象コンポーネント:**
+- Effort_Point計算ロジック（ゴール種別ごとのポイント値）
+- Trigger優先度選択ロジック
+- Profile完全性チェック
+- Action_Ticketステータス遷移
+- BehaviorModel達成率計算
+
+**フレームワーク:** Jest（React Native）/ pytest（バックエンドPython）
+
+**方針:**
+- 具体的な例・エッジケース・エラー条件に集中
+- プロパティベーステストでカバーされる入力範囲はユニットテストで重複させない
+- 各コンポーネントのモック境界を明確に定義する
+
+### プロパティベーステスト（PBT）
+
+上記の Correctness Properties セクションで定義した20のプロパティを、プロパティベーステストとして実装します。
+
+**フレームワーク:**
+- TypeScript/React Native: `fast-check`
+- Python（バックエンド）: `hypothesis`
+
+**設定:**
+- 各プロパティテストは最低100回のイテレーションを実行する
+- 各テストには以下の形式でタグを付与する:
+  ```
+  // Feature: anti-habit-app, Property {番号}: {プロパティのタイトル}
+  ```
+
+**ジェネレーター設計:**
+- `arbitraryProfile`: 有効なProfile（必須フィールドすべて含む）を生成
+- `arbitraryIncompleteProfile`: ランダムなフィールドが欠けたProfileを生成
+- `arbitraryGoalList`: 1件以上のGoalリスト（Primary_Goal含む）を生成
+- `arbitraryActionTicketSet`: 様々なゴール種別のDone済みチケット集合を生成
+- `arbitraryActionLogDataset`: 曜日・時間帯・ゴール種別が多様なAction_Logデータセットを生成
+- `arbitraryTriggerSet`: 優先度が異なる複数のTriggerを生成
+
+**重点プロパティ（優先実装）:**
+1. Property 8: Recommendation応答によるAction_Ticket生成（コアフロー）
+2. Property 13: Effort_Pointのゴール種別別計算（報酬システム）
+3. Property 3: Primary_Goal設定の一意性（データ整合性）
+4. Property 6: 複数Trigger発火時の優先度選択（State Detection）
+5. Property 20: 1日の終わりのOpen_Ticket自動破棄（ライフサイクル）
+
+### 統合テスト
+
+外部サービス（Amazon Bedrock、DynamoDB、EventBridge）との連携を検証します。
+
+**対象:**
+- LLM（Amazon Bedrock）呼び出しとPersona_Message生成
+- DynamoDBへのデータ永続化と取得
+- EventBridgeによる日次集計スケジューリング
+- Cognito認証フロー
+
+**方針:**
+- 1〜3件の代表的な例でテスト（PBTは不適切）
+- テスト環境ではLocalStackまたはAWSテストアカウントを使用
+- 外部サービスのモックはユニットテスト・PBTのみで使用
+
+### スモークテスト
+
+- 位置情報権限設定の確認
+- Similar_User_Data収集の匿名化設定確認
+- EventBridgeスケジューラーの設定確認
+
+### テストカバレッジ目標
+
+| レイヤー | カバレッジ目標 |
+|---------|-------------|
+| ユニットテスト | 80%以上（ビジネスロジック） |
+| プロパティベーステスト | 全20プロパティ実装 |
+| 統合テスト | 主要フロー（起動→Recommendation→Ticket→Point）のE2E |
