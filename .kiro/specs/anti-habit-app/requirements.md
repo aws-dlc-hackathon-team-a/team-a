@@ -137,16 +137,18 @@
 
 #### 受け入れ基準
 
-1. WHEN ユーザーがAction_TicketをDoneにしたとき、DagaSoreDeIi_App SHALL そのAction_TicketのgoalTypeに応じてEffort_Pointを即時付与する
-2. DagaSoreDeIi_App SHALL Primary_Goalの行動完了に対して10 Effort_Pointを付与する
-3. DagaSoreDeIi_App SHALL Pivot_Goalの行動完了に対して7 Effort_Pointを付与する
-4. DagaSoreDeIi_App SHALL 最低限の行動（例：外出・散歩）の完了に対して3 Effort_Pointを付与する
-5. WHEN 自由入力でAction_Ticketを生成するとき、DagaSoreDeIi_App SHALL ユーザーがgoalTypeを「Primary_Goal」「Pivot_Goal」「最低限の行動」から選択できるUIを提供する（選択されたgoalTypeに基づいてEffort_Pointが決定される）
-6. WHEN Effort_Pointが付与されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
-7. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日の累計Effort_Pointをサマリー表示する
-8. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
-9. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
-10. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
+1. WHEN ユーザーがAction_TicketをDoneにしたとき、DagaSoreDeIi_App SHALL そのAction_TicketのgoalTypeとactionLevelに応じてEffort_Pointを即時付与する
+2. DagaSoreDeIi_App SHALL Effort_Pointを以下のルールで付与する
+   - goalType=primary / actionLevel=normal：10 Effort_Point
+   - goalType=primary / actionLevel=minimal：5 Effort_Point
+   - goalType=pivot / actionLevel=normal：7 Effort_Point
+   - goalType=pivot / actionLevel=minimal：3 Effort_Point
+3. WHEN 自由入力でAction_Ticketを生成するとき、DagaSoreDeIi_App SHALL ユーザーがgoalType（「Primary_Goal」「Pivot_Goal」）とactionLevel（「normal」「minimal」）を選択できるUIを提供する（選択された組み合わせに基づいてEffort_Pointが決定される）
+4. WHEN Effort_Pointが付与されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
+5. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日の累計Effort_Pointをサマリー表示する
+6. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
+7. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
+8. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
 
 ---
 
