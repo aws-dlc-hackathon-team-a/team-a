@@ -32,17 +32,19 @@ graph TB
         StateDetect["State Detection\nModule"]
     end
 
-    subgraph Backend["バックエンド (AWS)"]
+    subgraph Backend["バックエンド (AWS Lambda)"]
         APIGW["API Gateway"]
         AuthSvc["Auth Service\n(Cognito)"]
-        ProfileSvc["Profile Service"]
-        GoalSvc["Goal Service"]
-        RecommendSvc["Recommendation Service"]
-        TicketSvc["Action Ticket Service"]
-        PointSvc["Effort Point Service"]
-        LearningEngine["Learning Engine"]
-        FutureSelfSvc["Future Self Model Service"]
-        PersonaMsgSvc["Persona Message Service"]
+        ProfileSvc["Profile Service\n(Lambda)"]
+        GoalSvc["Goal Service\n(Lambda)"]
+        subgraph RecommendLambda["Recommendation Service (Lambda)"]
+            RecommendSvc["Recommendation\nOrchestrator"]
+            LearningEngine["Learning Engine\n(モジュール)"]
+            FutureSelfSvc["Future Self Model\n(モジュール)"]
+            PersonaMsgSvc["Persona Message\n(モジュール)"]
+        end
+        TicketSvc["Action Ticket Service\n(Lambda)"]
+        PointSvc["Effort Point Service\n(Lambda)"]
     end
 
     subgraph AI["AI / ML Layer"]
@@ -63,7 +65,7 @@ graph TB
     APIGW --> AuthSvc
     APIGW --> ProfileSvc
     APIGW --> GoalSvc
-    APIGW --> RecommendSvc
+    APIGW --> RecommendLambda
     APIGW --> TicketSvc
     APIGW --> PointSvc
     ProfileSvc --> UserDB
@@ -71,13 +73,13 @@ graph TB
     RecommendSvc --> LearningEngine
     RecommendSvc --> FutureSelfSvc
     RecommendSvc --> PersonaMsgSvc
-    TicketSvc --> ActionLogDB
-    PointSvc --> ActionLogDB
     LearningEngine --> MLModel
     LearningEngine --> ActionLogDB
     FutureSelfSvc --> SimilarUserDB
     FutureSelfSvc --> MLModel
     PersonaMsgSvc --> LLM
+    TicketSvc --> ActionLogDB
+    PointSvc --> ActionLogDB
     ActionLogDB --> AnalyticsDB
 ```
 
@@ -88,22 +90,20 @@ sequenceDiagram
     participant User
     participant App as モバイルApp
     participant StateDetect as State Detection
-    participant RecommendSvc as Recommendation Service
-    participant LearningEngine as Learning Engine
-    participant PersonaMsgSvc as Persona Message Service
-    participant TicketSvc as Action Ticket Service
+    participant RecommendSvc as Recommendation Service\n(Lambda)
+    participant TicketSvc as Action Ticket Service\n(Lambda)
 
     User->>App: アプリ起動
     App->>StateDetect: 状態検知リクエスト
-    StateDetect->>StateDetect: 位置情報・自己申告を評価
+    StateDetect->>StateDetect: 位置情報を評価
     StateDetect-->>App: Trigger発火 or なし
 
-    alt Triggerあり
+    alt Triggerあり（自動）
         App->>RecommendSvc: Recommendation生成リクエスト\n(Profile + Goal + ActionLog)
-        RecommendSvc->>LearningEngine: パーソナライズモデル取得
-        LearningEngine-->>RecommendSvc: 行動モデル
-        RecommendSvc->>PersonaMsgSvc: Persona_Message生成
-        PersonaMsgSvc-->>RecommendSvc: メッセージ
+        Note over RecommendSvc: Lambda内部処理
+        RecommendSvc->>RecommendSvc: LearningEngineモジュール:\nパーソナライズモデル取得
+        RecommendSvc->>RecommendSvc: FutureSelfModelモジュール:\n類似ユーザーデータ参照
+        RecommendSvc->>RecommendSvc: PersonaMessageモジュール:\nBedrock呼び出しでメッセージ生成
         RecommendSvc-->>App: Recommendation (4択付き)
         App-->>User: Recommendation表示
 
@@ -111,8 +111,27 @@ sequenceDiagram
         App->>TicketSvc: Action_Ticket生成 (Open)
         TicketSvc-->>App: Ticket ID
         App-->>User: Action_Ticket確認表示
-    else Triggerなし
-        App-->>User: 通常ホーム画面表示
+    else Triggerなし → 通常ホーム画面
+        App-->>User: 通常ホーム画面表示（手動Triggerボタンあり）
+        User->>App: 手動Triggerボタンをタップ
+        App-->>User: 心理状態の入力画面（任意・スキップ可）
+        opt 心理状態を入力する場合
+            User->>App: 心理状態テキスト入力
+        end
+        App->>StateDetect: 手動Trigger生成（psychologicalInput付き or なし）
+        StateDetect-->>App: 手動Trigger
+        App->>RecommendSvc: Recommendation生成リクエスト\n(Profile + Goal + ActionLog + psychologicalInput)
+        Note over RecommendSvc: Lambda内部処理（自動Triggerと同一フロー）
+        RecommendSvc->>RecommendSvc: LearningEngineモジュール:\nパーソナライズモデル取得
+        RecommendSvc->>RecommendSvc: FutureSelfModelモジュール:\n類似ユーザーデータ参照
+        RecommendSvc->>RecommendSvc: PersonaMessageモジュール:\nBedrock呼び出しでメッセージ生成
+        RecommendSvc-->>App: Recommendation (4択付き)
+        App-->>User: Recommendation表示
+
+        User->>App: 4択応答（やる/別の方法/目標チェンジ/自由入力）
+        App->>TicketSvc: Action_Ticket生成 (Open)
+        TicketSvc-->>App: Ticket ID
+        App-->>User: Action_Ticket確認表示
     end
 ```
 
@@ -121,17 +140,18 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Scheduler as スケジューラー (EventBridge)
-    participant PointSvc as Effort Point Service
-    participant TicketSvc as Action Ticket Service
-    participant PersonaMsgSvc as Persona Message Service
+    participant PointSvc as Effort Point Service\n(Lambda)
+    participant TicketSvc as Action Ticket Service\n(Lambda)
+    participant RecommendSvc as Recommendation Service\n(Lambda)
     participant App as モバイルApp
 
     Scheduler->>PointSvc: 集計タイミング到達（デフォルト24:00）
     PointSvc->>TicketSvc: Done済みAction_Ticket取得
     TicketSvc-->>PointSvc: Done済みチケット一覧
     PointSvc->>PointSvc: Effort_Point計算\n(Primary:10pt / Pivot:7pt / 最低限:3pt)
-    PointSvc->>PersonaMsgSvc: 肯定メッセージ生成
-    PersonaMsgSvc-->>PointSvc: Persona_Message
+    PointSvc->>RecommendSvc: 肯定メッセージ生成リクエスト
+    Note over RecommendSvc: PersonaMessageモジュールで\nBedrock呼び出し
+    RecommendSvc-->>PointSvc: Persona_Message
     PointSvc->>TicketSvc: Open残チケット自動破棄
     TicketSvc-->>PointSvc: 破棄完了
     PointSvc-->>App: Effort_Point + メッセージ通知（アプリ内）
@@ -214,8 +234,8 @@ interface StateDetectionModule {
   // 位置情報取得（権限チェック付き）
   getLocationIfPermitted(): Promise<Location | null>;
   
-  // 心理状態入力受付
-  acceptPsychologicalInput(input: string): Promise<PsychologicalState>;
+  // 手動起動処理（心理状態の任意入力を受け付けてTrigger生成）
+  handleManualTrigger(psychologicalInput?: string): Promise<Trigger>;
   
   // Triggerソース設定取得
   getTriggerSettings(userId: string): Promise<TriggerSettings>;
@@ -225,11 +245,12 @@ interface StateDetectionModule {
 }
 ```
 
-### 4. Recommendation Service
+### 4. Recommendation Service（Lambda）
 
-Triggerに基づいてRecommendationを生成するサービス。
+Triggerに基づいてRecommendationを生成するLambda。Learning Engine・Future Self Model・Persona Messageの3つのモジュールを内包し、Lambda間の連鎖呼び出しなしに1リクエスト内で完結する。
 
 ```typescript
+// --- Recommendation Orchestrator ---
 interface RecommendationService {
   // 初回Recommendation生成（Primary_Goal関連）
   generateInitialRecommendation(
@@ -258,7 +279,70 @@ interface RecommendationService {
     userId: string,
     input: string
   ): Promise<Recommendation>;
+
+  // Persona_Message生成（Effort_Point集計・破棄通知など外部からの呼び出し用）
+  generatePersonaMessage(
+    userId: string,
+    context: MessageContext
+  ): Promise<PersonaMessage>;
 }
+
+// --- Learning Engine モジュール（Lambda内部） ---
+interface LearningEngineModule {
+  // 行動モデル取得（7件以上蓄積後にパーソナライズ）
+  getBehaviorModel(userId: string): Promise<BehaviorModel>;
+  
+  // 曜日・時間帯別達成率分析
+  analyzeAchievementRate(userId: string): Promise<AchievementRateAnalysis>;
+  
+  // Pivot_Goal昇格提案チェック（応答率80%超）
+  checkPivotGoalPromotion(userId: string): Promise<GoalPromotionSuggestion | null>;
+  
+  // Action_Log蓄積・Profile自動更新・Future_Self_Model更新
+  recordAndUpdate(userId: string, log: ActionLogEntry): Promise<void>;
+  
+  // 学習データリセット（確認済み）
+  resetLearningData(userId: string, confirmed: boolean): Promise<void>;
+}
+
+// --- Future Self Model モジュール（Lambda内部） ---
+interface FutureSelfModelModule {
+  // Future_Self_Model構築（Profile登録時）
+  buildModel(userId: string, profile: Profile): Promise<FutureSelfModel>;
+  
+  // Future_Self_Model取得
+  getModel(userId: string): Promise<FutureSelfModel>;
+  
+  // Similar_User_Data検索（類似プロフィール）
+  findSimilarUsers(profile: Profile, minCount: number): Promise<SimilarUserData[]>;
+  
+  // モデル更新（Action_Log蓄積時）
+  updateModel(userId: string, actionLog: ActionLog): Promise<FutureSelfModel>;
+  
+  // フォールバックモデル生成（類似ユーザー5件未満）
+  buildFallbackModel(userId: string, profile: Profile, goals: Goal[]): Promise<FutureSelfModel>;
+}
+
+// --- Persona Message モジュール（Lambda内部・Bedrock呼び出し） ---
+interface PersonaMessageModule {
+  // Recommendation用メッセージ生成
+  generateRecommendationMessage(
+    recommendation: Recommendation,
+    context: MessageContext
+  ): Promise<PersonaMessage>;
+  
+  // Effort_Point付与時メッセージ生成
+  generateEffortPointMessage(result: EffortPointResult): Promise<PersonaMessage>;
+  
+  // Action_Ticket破棄時メッセージ生成
+  generateDiscardMessage(discardResult: DiscardResult): Promise<PersonaMessage>;
+  
+  // Goal達成メッセージ生成
+  generateAchievementMessage(
+    goalType: 'primary' | 'pivot' | 'minimal'
+  ): Promise<PersonaMessage>;
+}
+```
 ```
 
 ### 5. Action Ticket Service
@@ -293,9 +377,9 @@ interface ActionTicketService {
 }
 ```
 
-### 6. Effort Point Service
+### 6. Effort Point Service（Lambda）
 
-Effort_Pointの計算・付与・集計を担当するサービス。
+Effort_Pointの計算・付与・集計を担当するLambda。EventBridgeでスケジュール起動され、Persona_Message生成はRecommendation Serviceに委譲する。
 
 ```typescript
 interface EffortPointService {
@@ -316,93 +400,6 @@ interface EffortPointService {
   
   // マイルストーン達成チェック（100の倍数）
   checkMilestone(userId: string, newTotal: number): Promise<Milestone | null>;
-}
-```
-
-### 7. Learning Engine
-
-ユーザーの行動データを学習し、Recommendationを最適化するコンポーネント。
-
-```typescript
-interface LearningEngine {
-  // Action_Log蓄積
-  recordActionLog(userId: string, log: ActionLogEntry): Promise<void>;
-  
-  // 行動モデル取得（7件以上蓄積後にパーソナライズ）
-  getBehaviorModel(userId: string): Promise<BehaviorModel>;
-  
-  // 曜日・時間帯別達成率分析
-  analyzeAchievementRate(
-    userId: string
-  ): Promise<AchievementRateAnalysis>;
-  
-  // Pivot_Goal昇格提案チェック（応答率80%超）
-  checkPivotGoalPromotion(userId: string): Promise<GoalPromotionSuggestion | null>;
-  
-  // Future_Self_Model更新
-  updateFutureSelfModel(userId: string): Promise<void>;
-  
-  // 学習データリセット（確認済み）
-  resetLearningData(userId: string, confirmed: boolean): Promise<void>;
-  
-  // Profile自動更新
-  autoUpdateProfile(userId: string): Promise<void>;
-}
-```
-
-### 8. Future Self Model Service
-
-Similar_User_Dataを基にFuture_Self_Modelを構築・管理するサービス。
-
-```typescript
-interface FutureSelfModelService {
-  // Future_Self_Model構築（Profile登録時）
-  buildModel(userId: string, profile: Profile): Promise<FutureSelfModel>;
-  
-  // Future_Self_Model取得
-  getModel(userId: string): Promise<FutureSelfModel>;
-  
-  // Similar_User_Data検索（類似プロフィール）
-  findSimilarUsers(profile: Profile, minCount: number): Promise<SimilarUserData[]>;
-  
-  // モデル更新（Action_Log蓄積時）
-  updateModel(userId: string, actionLog: ActionLog): Promise<FutureSelfModel>;
-  
-  // フォールバックモデル生成（類似ユーザー5件未満）
-  buildFallbackModel(userId: string, profile: Profile, goals: Goal[]): Promise<FutureSelfModel>;
-}
-```
-
-### 9. Persona Message Service
-
-Future_Self_ModelのトーンでPersona_Messageを生成するサービス。
-
-```typescript
-interface PersonaMessageService {
-  // Recommendation用メッセージ生成
-  generateRecommendationMessage(
-    userId: string,
-    recommendation: Recommendation,
-    context: MessageContext
-  ): Promise<PersonaMessage>;
-  
-  // Effort_Point付与時メッセージ生成
-  generateEffortPointMessage(
-    userId: string,
-    result: EffortPointResult
-  ): Promise<PersonaMessage>;
-  
-  // Action_Ticket破棄時メッセージ生成
-  generateDiscardMessage(
-    userId: string,
-    discardResult: DiscardResult
-  ): Promise<PersonaMessage>;
-  
-  // Goal達成メッセージ生成
-  generateAchievementMessage(
-    userId: string,
-    goalType: 'primary' | 'pivot' | 'minimal'
-  ): Promise<PersonaMessage>;
 }
 ```
 
@@ -494,8 +491,9 @@ interface DetectedState {
   userId: string;
   detectedAt: string;
   location: Location | null;
-  psychologicalInput: string | null;
+  psychologicalInput: string | null;  // 手動起動時の任意入力
   stayDurationMinutes: number | null;  // 同一位置滞在時間
+  triggerSource: 'app_launch' | 'manual';
 }
 
 interface Location {
@@ -506,16 +504,17 @@ interface Location {
 
 interface Trigger {
   triggerId: string;
-  triggerType: 'long_stay_home' | 'psychological_stagnation' | 'manual';
+  triggerType: 'long_stay_home' | 'manual';
   priority: number;           // 優先度（高いほど優先）
   detectedAt: string;
+  psychologicalInput: string | null;  // 手動起動時の任意入力（Persona_Messageパーソナライズに使用）
   sourceData: Record<string, unknown>;
 }
 
 interface TriggerSettings {
   userId: string;
   locationEnabled: boolean;
-  selfReportEnabled: boolean;
+  manualEnabled: boolean;
   updatedAt: string;
 }
 ```
@@ -835,7 +834,7 @@ interface BehaviorModel {
 
 ### 位置情報権限拒否
 
-- 位置情報の取得権限が拒否された場合、位置情報Triggerを無効化し、他のTriggerソース（自己申告）のみで動作を継続する
+- 位置情報の取得権限が拒否された場合、位置情報Triggerを無効化し、手動起動Triggerのみで動作を継続する
 - ユーザーには権限が拒否されている旨を通知し、設定変更を促すオプションを提示する
 
 ### Profile未完了状態

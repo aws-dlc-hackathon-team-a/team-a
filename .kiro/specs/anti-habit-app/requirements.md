@@ -21,8 +21,8 @@
 - **Primary_Goal**: ユーザーが最優先として設定したGoal。出発点として機能するが、別の強みや才能が開花する可能性を妨げない
 - **Pivot_Goal**: Primary_Goalの達成が難しい日に、同じくらい価値のある別の選択肢として提案されるGoal（例：筋トレ、散歩）
 - **Flexible_Achievement**: 当初の目標でなくても、何かしら行動できたことを肯定的に評価する概念。本アプリの中心的な価値観
-- **State_Detection**: ユーザーの現在の状態（位置情報・スクリーンタイム・心理状態など）を検知する機能。v1ではアプリ起動時に実行される
-- **Trigger**: State_Detectionによって検知された、行動提案を発火させる条件（例：「アプリ起動時に2時間以上自宅にいる」）
+- **State_Detection**: ユーザーの現在の状態（位置情報・心理状態など）を検知する機能。v1ではアプリ起動時および手動起動時に実行される
+- **Trigger**: State_Detectionによって検知された、行動提案を発火させる条件（例：「アプリ起動時に2時間以上自宅にいる」「ホーム画面のボタンをタップした」）
 - **Recommendation**: TriggerをもとにAIが生成する行動提案。初回は必ずPrimary_Goalに関連した提案を行う
 - **Pivot**: ユーザーがRecommendationを拒否または無視した際に、Pivot_Goalへと提案を切り替える機能。「失敗」ではなく「別の価値ある選択肢」への切り替えを意味する。アプリ起動時に実行される
 - **Effort_Point**: 当初のGoalであれ代替のGoalであれ、1日の終わりに何かしら行動した場合に付与されるポイント。「何をやっても価値がある」というメッセージを体現する
@@ -72,13 +72,14 @@
 
 #### 受け入れ基準
 
-1. State_Detection SHALL 位置情報・ユーザーの自己申告の2種類のTriggerソースをサポートする
+1. State_Detection SHALL 位置情報・手動起動の2種類のTriggerソースをサポートする
 2. WHEN ユーザーがアプリを起動したとき、State_Detection SHALL ユーザーの現在の状態を検知しTriggerを評価する（v1ではアプリ起動時のみ実行。バックグラウンドでのプッシュ通知トリガーはv2以降）
 3. WHEN アプリ起動時にユーザーが2時間以上同一の自宅位置に留まっているとき、State_Detection SHALL 「長時間在宅」Triggerを発火する
-4. WHEN ユーザーが「今日は何もできていない」「どうしようか悩んでいる」などの心理状態をアプリに入力したとき、State_Detection SHALL 「心理的停滞」Triggerを発火する
-5. DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
-6. IF 位置情報の取得権限が拒否されている場合、THEN DagaSoreDeIi_App SHALL 位置情報Triggerを無効化し、他のTriggerソースのみで動作する
-7. WHEN 複数のTriggerが同時に発火したとき、State_Detection SHALL 最も優先度の高いTriggerを1件選択してRecommendationを生成する
+4. DagaSoreDeIi_App SHALL 通常ホーム画面にボタンを設置し、ユーザーがいつでも手動でTriggerを発火してRecommendationフローを開始できる機能を提供する
+5. WHEN ユーザーが手動TriggerボタンをタップしたときDagaSoreDeIi_App SHALL 心理状態の入力を任意で受け付けた後にRecommendationフローを開始する（入力された心理状態はPersona_Messageのパーソナライズに使用する）
+6. DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
+7. IF 位置情報の取得権限が拒否されている場合、THEN DagaSoreDeIi_App SHALL 位置情報Triggerを無効化し、手動起動Triggerのみで動作する
+8. WHEN 複数のTriggerが同時に発火したとき、State_Detection SHALL 最も優先度の高いTriggerを1件選択してRecommendationを生成する
 
 ---
 
@@ -88,7 +89,7 @@
 
 #### 受け入れ基準
 
-1. WHEN ユーザーがアプリを起動しTriggerが発火したとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで初回Recommendationをアプリ内に表示する（v1ではアプリ内表示のみ。アプリを開いていないタイミングでのプッシュ通知はv2以降）
+1. WHEN ユーザーがアプリを起動しTriggerが発火したとき、またはユーザーが手動TriggerボタンをタップしたときDagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで初回Recommendationをアプリ内に表示する（v1ではアプリ内表示のみ。アプリを開いていないタイミングでのプッシュ通知はv2以降）
 2. DagaSoreDeIi_App SHALL 初回RecommendationをPrimary_Goalに関連した行動提案とする（例：「カフェに移動して英語の文法勉強しない？」）
 3. DagaSoreDeIi_App SHALL 初回Recommendationに以下の4択の応答ボタンを含める
    - **「やる」**：提案されたアクションをそのまま実施する
