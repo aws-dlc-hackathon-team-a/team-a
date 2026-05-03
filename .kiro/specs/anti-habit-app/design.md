@@ -28,23 +28,16 @@
 graph TB
     subgraph Client["モバイルクライアント (iOS / Android)"]
         UI["UI Layer\n(React Native)"]
-        LocalDB["Local Storage\n(SQLite / AsyncStorage)"]
+        LocalDB["Local Storage\n(オフライン一時保存のみ)"]
         StateDetect["State Detection\nModule"]
     end
 
     subgraph Backend["バックエンド (AWS Lambda)"]
         APIGW["API Gateway"]
         AuthSvc["Auth Service\n(Cognito)"]
-        ProfileSvc["Profile Service\n(Lambda)"]
-        GoalSvc["Goal Service\n(Lambda)"]
-        subgraph RecommendLambda["Recommendation Service (Lambda)"]
-            RecommendSvc["Recommendation\nOrchestrator"]
-            LearningEngine["Learning Engine\n(モジュール)"]
-            FutureSelfSvc["Future Self Model\n(モジュール)"]
-            PersonaMsgSvc["Persona Message\n(モジュール)"]
-        end
-        TicketSvc["Action Ticket Service\n(Lambda)"]
-        PointSvc["Effort Point Service\n(Lambda)"]
+        UserGoalSvc["User & Goal Service\n(Lambda)"]
+        RecommendSvc["Recommendation Service\n(Lambda)"]
+        TicketPointSvc["Ticket & Point Service\n(Lambda)"]
     end
 
     subgraph AI["AI / ML Layer"]
@@ -52,35 +45,28 @@ graph TB
         MLModel["Behavior Model\n(SageMaker)"]
     end
 
-    subgraph DataStore["データストア"]
+    subgraph DataStore["データストア (DynamoDB)"]
         UserDB["User DB\n(DynamoDB)"]
         ActionLogDB["Action Log DB\n(DynamoDB)"]
         SimilarUserDB["Similar User DB\n(DynamoDB - 匿名化)"]
-        AnalyticsDB["Analytics DB\n(S3 + Athena)"]
     end
 
     UI --> StateDetect
     UI --> APIGW
     StateDetect --> UI
     APIGW --> AuthSvc
-    APIGW --> ProfileSvc
-    APIGW --> GoalSvc
-    APIGW --> RecommendLambda
-    APIGW --> TicketSvc
-    APIGW --> PointSvc
-    ProfileSvc --> UserDB
-    GoalSvc --> UserDB
-    RecommendSvc --> LearningEngine
-    RecommendSvc --> FutureSelfSvc
-    RecommendSvc --> PersonaMsgSvc
-    LearningEngine --> MLModel
-    LearningEngine --> ActionLogDB
-    FutureSelfSvc --> SimilarUserDB
-    FutureSelfSvc --> MLModel
-    PersonaMsgSvc --> LLM
-    TicketSvc --> ActionLogDB
-    PointSvc --> ActionLogDB
-    ActionLogDB --> AnalyticsDB
+    APIGW --> UserGoalSvc
+    APIGW --> RecommendSvc
+    APIGW --> TicketPointSvc
+    UserGoalSvc --> UserDB
+    RecommendSvc --> UserDB
+    RecommendSvc --> ActionLogDB
+    RecommendSvc --> SimilarUserDB
+    RecommendSvc --> LLM
+    RecommendSvc --> MLModel
+    TicketPointSvc --> ActionLogDB
+    TicketPointSvc --> UserDB
+    TicketPointSvc --> RecommendSvc
 ```
 
 ### アプリ起動時のフロー
@@ -91,7 +77,7 @@ sequenceDiagram
     participant App as モバイルApp
     participant StateDetect as State Detection
     participant RecommendSvc as Recommendation Service\n(Lambda)
-    participant TicketSvc as Action Ticket Service\n(Lambda)
+    participant TicketPointSvc as Ticket & Point Service\n(Lambda)
 
     User->>App: アプリ起動
     App->>StateDetect: 状態検知リクエスト
@@ -108,8 +94,8 @@ sequenceDiagram
         App-->>User: Recommendation表示
 
         User->>App: 4択応答（やる/別の方法/目標チェンジ/自由入力）
-        App->>TicketSvc: Action_Ticket生成 (Open)
-        TicketSvc-->>App: Ticket ID
+        App->>TicketPointSvc: Action_Ticket生成 (Open)
+        TicketPointSvc-->>App: Ticket ID
         App-->>User: Action_Ticket確認表示
     else Triggerなし → 通常ホーム画面
         App-->>User: 通常ホーム画面表示（手動Triggerボタンあり）
@@ -129,8 +115,8 @@ sequenceDiagram
         App-->>User: Recommendation表示
 
         User->>App: 4択応答（やる/別の方法/目標チェンジ/自由入力）
-        App->>TicketSvc: Action_Ticket生成 (Open)
-        TicketSvc-->>App: Ticket ID
+        App->>TicketPointSvc: Action_Ticket生成 (Open)
+        TicketPointSvc-->>App: Ticket ID
         App-->>User: Action_Ticket確認表示
     end
 ```
@@ -140,86 +126,53 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Scheduler as スケジューラー (EventBridge)
-    participant PointSvc as Effort Point Service\n(Lambda)
-    participant TicketSvc as Action Ticket Service\n(Lambda)
+    participant TicketPointSvc as Ticket & Point Service\n(Lambda)
     participant RecommendSvc as Recommendation Service\n(Lambda)
     participant App as モバイルApp
 
-    Scheduler->>PointSvc: 集計タイミング到達（デフォルト24:00）
-    PointSvc->>TicketSvc: Done済みAction_Ticket取得
-    TicketSvc-->>PointSvc: Done済みチケット一覧
-    PointSvc->>PointSvc: Effort_Point計算\n(Primary:10pt / Pivot:7pt / 最低限:3pt)
-    PointSvc->>RecommendSvc: 肯定メッセージ生成リクエスト
+    Scheduler->>TicketPointSvc: 集計タイミング到達（デフォルト24:00）
+    TicketPointSvc->>TicketPointSvc: Done済みAction_Ticket取得
+    TicketPointSvc->>TicketPointSvc: Effort_Point計算\n(Primary:10pt / Pivot:7pt / 最低限:3pt)
+    TicketPointSvc->>RecommendSvc: 肯定メッセージ生成リクエスト
     Note over RecommendSvc: PersonaMessageモジュールで\nBedrock呼び出し
-    RecommendSvc-->>PointSvc: Persona_Message
-    PointSvc->>TicketSvc: Open残チケット自動破棄
-    TicketSvc-->>PointSvc: 破棄完了
-    PointSvc-->>App: Effort_Point + メッセージ通知（アプリ内）
+    RecommendSvc-->>TicketPointSvc: Persona_Message
+    TicketPointSvc->>TicketPointSvc: Open残チケット自動破棄
+    TicketPointSvc-->>App: Effort_Point + メッセージ通知（アプリ内）
 ```
 
 ---
 
 ## コンポーネントとインターフェース
 
-### 1. Profile Service
+### 1. User & Goal Service（Lambda）
 
-ユーザーのプロフィール情報を管理するサービス。
+ユーザーのプロフィール情報とGoalの管理を担当するLambda。User DBに対するCRUD操作を一元管理する。
 
 ```typescript
+// --- Profile管理 ---
 interface ProfileService {
-  // プロフィール作成（オンボーディング）
   createProfile(userId: string, data: ProfileInput): Promise<Profile>;
-  
-  // プロフィール取得
   getProfile(userId: string): Promise<Profile>;
-  
-  // プロフィール更新（ユーザー手動）
   updateProfile(userId: string, data: Partial<ProfileInput>): Promise<Profile>;
-  
-  // プロフィール自動更新（Learning_Engine経由）
   autoUpdateProfile(userId: string, actionLog: ActionLog): Promise<Profile>;
-  
-  // 更新履歴取得
   getUpdateHistory(userId: string): Promise<ProfileUpdateHistory[]>;
-  
-  // 得意な行動パターン分析（過去30日）
   analyzeBehaviorPattern(userId: string): Promise<BehaviorPattern>;
-  
-  // オンボーディング完了チェック
   isOnboardingComplete(userId: string): Promise<boolean>;
 }
-```
 
-### 2. Goal Service
-
-Goalの管理（CRUD・Primary/Pivot切り替え）を担当するサービス。
-
-```typescript
+// --- Goal管理 ---
 interface GoalService {
-  // Goal作成
   createGoal(userId: string, data: GoalInput): Promise<Goal>;
-  
-  // Goal一覧取得
   listGoals(userId: string): Promise<Goal[]>;
-  
-  // Goal更新
   updateGoal(userId: string, goalId: string, data: Partial<GoalInput>): Promise<Goal>;
-  
-  // Goal削除（確認フラグ付き）
   deleteGoal(userId: string, goalId: string, confirmed: boolean): Promise<void>;
-  
-  // Primary_Goal設定
   setPrimaryGoal(userId: string, goalId: string): Promise<Goal>;
-  
-  // Pivot_Goal候補取得（Primary以外）
   getPivotGoalCandidates(userId: string): Promise<Goal[]>;
-  
-  // AIによるPivot候補生成（Pivot_Goalが存在しない場合）
   generateAIPivotCandidates(userId: string): Promise<AIPivotCandidate[]>;
 }
 ```
 
-### 3. State Detection Module（クライアントサイド）
+### 2. State Detection Module（クライアントサイド）
 
 アプリ起動時にユーザーの状態を検知し、Triggerを評価するモジュール。
 
@@ -345,60 +298,27 @@ interface PersonaMessageModule {
 ```
 ```
 
-### 5. Action Ticket Service
+### 5. Ticket & Point Service（Lambda）
 
-Action_Ticketのライフサイクル管理を担当するサービス。
+Action_Ticketのライフサイクル管理とEffort_Pointの計算・付与・集計を担当するLambda。EventBridgeでスケジュール起動され、Persona_Message生成はRecommendation Serviceに委譲する。
 
 ```typescript
+// --- Action Ticket管理 ---
 interface ActionTicketService {
-  // Action_Ticket生成（Open）
-  createTicket(
-    userId: string,
-    data: ActionTicketInput
-  ): Promise<ActionTicket>;
-  
-  // Action_Ticket一覧取得（Open）
+  createTicket(userId: string, data: ActionTicketInput): Promise<ActionTicket>;
   listOpenTickets(userId: string): Promise<ActionTicket[]>;
-  
-  // Action_TicketをDoneに更新（自己申告）
-  completeTicket(
-    userId: string,
-    ticketId: string
-  ): Promise<ActionTicket>;
-  
-  // 1日の終わりにOpenチケットを自動破棄
+  completeTicket(userId: string, ticketId: string): Promise<ActionTicket>;
   discardExpiredTickets(userId: string, date: string): Promise<DiscardResult>;
-  
-  // 破棄済みチケット履歴取得
   getDiscardedTicketHistory(userId: string): Promise<ActionTicket[]>;
-  
-  // Done済みチケット取得（Effort_Point集計用）
   getDoneTicketsByDate(userId: string, date: string): Promise<ActionTicket[]>;
 }
-```
 
-### 6. Effort Point Service（Lambda）
-
-Effort_Pointの計算・付与・集計を担当するLambda。EventBridgeでスケジュール起動され、Persona_Message生成はRecommendation Serviceに委譲する。
-
-```typescript
+// --- Effort Point管理 ---
 interface EffortPointService {
-  // 1日の集計・ポイント付与
   calculateAndAwardPoints(userId: string, date: string): Promise<EffortPointResult>;
-  
-  // 累計ポイント取得
   getTotalPoints(userId: string): Promise<number>;
-  
-  // 週間・月間推移取得
-  getPointHistory(
-    userId: string,
-    period: 'weekly' | 'monthly'
-  ): Promise<PointHistory>;
-  
-  // 集計タイミング設定（ユーザーカスタマイズ）
+  getPointHistory(userId: string, period: 'weekly' | 'monthly'): Promise<PointHistory>;
   setDailyResetTime(userId: string, time: string): Promise<void>;
-  
-  // マイルストーン達成チェック（100の倍数）
   checkMilestone(userId: string, newTotal: number): Promise<Milestone | null>;
 }
 ```
@@ -866,7 +786,8 @@ interface BehaviorModel {
 
 ### ネットワーク障害
 
-- オフライン時はAction_Ticketの完了申告をローカルに保存し、オンライン復帰時に同期する
+- オフライン時はAction_Ticketの完了申告をLocal Storage（オフライン一時保存）に保存し、オンライン復帰時にDynamoDBへ同期する
+- Local StorageはオフラインのバッファとしてのみUse。Profile・Goal・Action_Logなどのマスターデータは常にDynamoDB（User DB / Action Log DB）が正とする
 - Recommendationの生成はオンライン必須とし、オフライン時はキャッシュされた最後のRecommendationを表示するか、接続を促すメッセージを表示する
 
 ---
