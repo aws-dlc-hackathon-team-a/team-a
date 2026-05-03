@@ -444,20 +444,22 @@ interface DetectedState {
   userId: string;
   detectedAt: string;
   location: Location | null;
+  previousLocation: Location | null; // 前回起動時の位置情報
+  previousDetectedAt: string | null; // 前回起動時のタイムスタンプ
+  elapsedMinutesSinceLastLaunch: number | null; // 前回起動からの経過時間（分）
+  isStationary: boolean | null; // 移動していない（同一位置滞在中）と判定されたか
   psychologicalInput: string | null; // 手動起動時の任意入力
-  stayDurationMinutes: number | null; // 同一位置滞在時間
   triggerSource: "app_launch" | "manual";
 }
 
 interface Location {
   latitude: number;
   longitude: number;
-  isHome: boolean;
 }
 
 interface Trigger {
   triggerId: string;
-  triggerType: "long_stay_home" | "manual";
+  triggerType: "long_stay_stationary" | "manual"; // long_stay_home → long_stay_stationary に変更
   priority: number; // 優先度（高いほど優先）
   detectedAt: string;
   psychologicalInput: string | null; // 手動起動時の任意入力（Persona_Messageパーソナライズに使用）
@@ -533,14 +535,20 @@ interface DiscardResult {
 interface EffortPointRecord {
   recordId: string;
   userId: string;
+  ticketId: string; // 即時付与のため、Action_Ticketと1対1で紐付く
+  goalType: "primary" | "pivot" | "minimal" | "free";
+  pointsAwarded: number; // 付与ポイント (primary:10 / pivot:7 / minimal:3 / free:goalType選択に基づく)
   date: string; // YYYY-MM-DD
-  primaryGoalPoints: number; // Primary_Goal完了分 (10pt/件)
-  pivotGoalPoints: number; // Pivot_Goal完了分 (7pt/件)
-  minimalActionPoints: number; // 最低限行動完了分 (3pt/件)
-  totalDayPoints: number;
-  cumulativeTotal: number;
+  cumulativeTotal: number; // 付与後の累計ポイント
   personaMessage: PersonaMessage;
-  awardedAt: string;
+  awardedAt: string; // 即時付与タイムスタンプ
+}
+
+interface DailySummary {
+  userId: string;
+  date: string; // YYYY-MM-DD
+  totalDayPoints: number; // その日の合計ポイント
+  summarizedAt: string; // 1日の終わりの集計タイムスタンプ
 }
 
 interface PointHistory {
@@ -654,9 +662,9 @@ _For any_ Primary_Goalが設定されたGoal一覧において、Primary_Goal以
 
 ---
 
-### Property 5: 長時間在宅Triggerの閾値
+### Property 5: 長時間滞在Triggerの閾値
 
-_For any_ 自宅での滞在時間において、120分以上の場合は「長時間在宅」Triggerが発火し、120分未満の場合は発火しないという関係が成立しなければならない
+_For any_ アプリ起動時において、前回起動からの経過時間が120分以上かつisStationary=trueの場合は「長時間滞在」Triggerが発火し、いずれかの条件を満たさない場合は発火しないという関係が成立しなければならない
 
 **Validates: Requirements 3.3**
 

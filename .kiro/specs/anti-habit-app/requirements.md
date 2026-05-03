@@ -74,7 +74,7 @@
 
 1. State_Detection SHALL 位置情報・手動起動の2種類のTriggerソースをサポートする
 2. WHEN ユーザーがアプリを起動したとき、State_Detection SHALL ユーザーの現在の状態を検知しTriggerを評価する（v1ではアプリ起動時のみ実行。バックグラウンドでのプッシュ通知トリガーはv2以降）
-3. WHEN アプリ起動時にユーザーが2時間以上同一の自宅位置に留まっているとき、State_Detection SHALL 「長時間在宅」Triggerを発火する
+3. WHEN アプリ起動時に前回起動時からの経過時間が2時間以上、かつ現在地と前回起動時の位置情報がほぼ同一（移動していない）と判定されたとき、State_Detection SHALL 「長時間滞在」Triggerを発火する
 4. DagaSoreDeIi_App SHALL 通常ホーム画面にボタンを設置し、ユーザーがいつでも手動でTriggerを発火してRecommendationフローを開始できる機能を提供する
 5. WHEN ユーザーが手動TriggerボタンをタップしたときDagaSoreDeIi_App SHALL 心理状態の入力を任意で受け付けた後にRecommendationフローを開始する（入力された心理状態はPersona_Messageのパーソナライズに使用する）
 6. DagaSoreDeIi_App SHALL ユーザーが各Triggerソースの有効/無効を個別に設定できる機能を提供する
@@ -91,7 +91,7 @@
 
 1. WHEN ユーザーがアプリを起動しTriggerが発火したとき、またはユーザーが手動TriggerボタンをタップしたときDagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで初回Recommendationをアプリ内に表示する（v1ではアプリ内表示のみ。アプリを開いていないタイミングでのプッシュ通知はv2以降）
 2. DagaSoreDeIi_App SHALL 初回RecommendationをPrimary_Goalに関連した行動提案とする（例：「カフェに移動して英語の文法勉強しない？」）
-3. DagaSoreDeIi_App SHALL 初回Recommendationに以下の4択の応答ボタンを含める
+3. DagaSoreDeIi_App SHALL すべてのRecommendationに以下の4択の応答ボタンを含める（初回・Pivot後を問わず共通）
    - **「やる」**：提案されたアクションをそのまま実施する
    - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する（例：「カフェで英語」→「家で英語の映画を見る」）
    - **「目標チェンジ」**：Pivot機能を起動し、別のGoalへの行動を提案する（例：「やっぱ筋トレする？」）
@@ -110,11 +110,7 @@
 2. WHEN ユーザーがアプリを起動し初回Recommendationに「いいえ（別の方法で）」と応答したとき、DagaSoreDeIi_App SHALL 同じPrimary_Goal内で別のアクションをFuture_Self_ModelのPersona_Messageで提案する（例：「カフェで英語の文法勉強」→「家で英語の映画を見る」）
 3. DagaSoreDeIi_App SHALL Pivot提案を常にFuture_Self_ModelのPersona_Message（未来の自分の設定・語り口）で行う
 4. WHEN ユーザーが初回Recommendationを無視して別の行動（例：筋トレ）を開始したとき、DagaSoreDeIi_App SHALL その行動をAction_Logに記録しPivot_Goalとして認識する
-5. DagaSoreDeIi_App SHALL Pivot後のRecommendationに以下の4択の応答ボタンを含める
-   - **「やる」**：提案されたアクションをそのまま実施する
-   - **「いいえ（別の方法で）」**：同じGoal内で別のアクションを提案する
-   - **「目標チェンジ」**：Pivot機能を起動し、さらに別のGoalへの行動を提案する
-   - **自由入力**：ユーザーが自分でやりたいことを入力でき、アプリはその行動を受け入れてAction_Logに記録する
+5. DagaSoreDeIi_App SHALL Pivot後のRecommendationにも要件4.3で定義した4択の応答ボタンを使用する
 6. WHEN ユーザーがPivot後のRecommendationの4択のいずれかに応答したとき、DagaSoreDeIi_App SHALL その行動に対応するAction_Ticketを生成しステータスをOpen（未完了）として保持する
 7. IF ユーザーが「目標チェンジ」を選択したとき、かつPivot_Goal候補（Primary_Goal以外のGoal）が存在しない場合、THEN DagaSoreDeIi_App SHALL ユーザーのProfileの興味分野・生活リズム・現在の悩みを参照してAIが即席のPivot候補を提案する（例：Profileに「運動が好き」とあれば「筋トレとかどう？」）
 8. IF ユーザーがPivot後のRecommendationも別の提案を希望した場合、THEN DagaSoreDeIi_App SHALL 最低限の行動（例：「5分だけ外の空気を吸いに行く」）をFuture_Self_ModelのPersona_Messageで提案する
@@ -128,12 +124,10 @@
 
 #### 受け入れ基準
 
-1. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、DagaSoreDeIi_App SHALL Action_LogをProfileに反映し行動傾向スコアを更新する
+1. WHEN ユーザーがいずれかのGoalに関連する行動を完了したとき、DagaSoreDeIi_App SHALL Action_LogをProfileに反映し行動傾向スコアを自動更新する
 2. WHEN ユーザーが連続3日以上Pivot_Goalの行動を完了したとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案するメッセージをアプリ内に表示する
 3. DagaSoreDeIi_App SHALL 過去30日間のAction_Logに基づいてProfileの「得意な行動パターン」を自動分析し表示する
-4. WHEN ユーザーがProfile更新の提案を承認したとき、DagaSoreDeIi_App SHALL Profileを更新し次回のRecommendationに反映する
-5. IF ユーザーがProfile更新の提案を拒否した場合、THEN DagaSoreDeIi_App SHALL 現在のProfileを維持し30日後に再度分析を実施する
-6. DagaSoreDeIi_App SHALL Profileの更新履歴をユーザーが閲覧できる機能を提供する
+4. DagaSoreDeIi_App SHALL Profileの更新履歴をユーザーが閲覧できる機能を提供する
 
 ---
 
@@ -143,14 +137,16 @@
 
 #### 受け入れ基準
 
-1. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日のDone済みAction_Ticketを集計しEffort_Pointを付与する
+1. WHEN ユーザーがAction_TicketをDoneにしたとき、DagaSoreDeIi_App SHALL そのAction_TicketのgoalTypeに応じてEffort_Pointを即時付与する
 2. DagaSoreDeIi_App SHALL Primary_Goalの行動完了に対して10 Effort_Pointを付与する
 3. DagaSoreDeIi_App SHALL Pivot_Goalの行動完了に対して7 Effort_Pointを付与する
 4. DagaSoreDeIi_App SHALL 最低限の行動（例：外出・散歩）の完了に対して3 Effort_Pointを付与する
-5. WHEN Effort_Pointが付与されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
-6. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
-7. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
-8. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
+5. WHEN 自由入力でAction_Ticketを生成するとき、DagaSoreDeIi_App SHALL ユーザーがgoalTypeを「Primary_Goal」「Pivot_Goal」「最低限の行動」から選択できるUIを提供する（選択されたgoalTypeに基づいてEffort_Pointが決定される）
+6. WHEN Effort_Pointが付与されたとき、DagaSoreDeIi_App SHALL Future_Self_ModelのPersona_Messageのトーンで「今日も何かできたね」という肯定的なメッセージとともにポイントをアプリ内に表示する
+7. DagaSoreDeIi_App SHALL 1日の終わり（デフォルト24:00（深夜0時）、ユーザーが自由に変更可能）にその日の累計Effort_Pointをサマリー表示する
+8. DagaSoreDeIi_App SHALL ユーザーの累計Effort_Pointおよび週間・月間の推移をグラフで表示する
+9. WHEN 累計Effort_Pointが100の倍数に達したとき、DagaSoreDeIi_App SHALL 特別な達成メッセージとバッジを表示する
+10. IF その日に一切の行動が記録されなかった場合、THEN DagaSoreDeIi_App SHALL Effort_Pointを付与せず「明日また何かできるよ」という前向きな励ましメッセージのみをアプリ内に表示する
 
 ---
 
@@ -193,9 +189,8 @@
 
 1. Learning_Engine SHALL ユーザーのAction_Log（Yes/No応答・Action_TicketのDone記録・時間帯・曜日・対象Goal種別）を蓄積し行動モデルを構築する
 2. WHEN Action_Logが7件以上蓄積されたとき、Learning_Engine SHALL Recommendationの生成アルゴリズムをパーソナライズされたモデルに切り替える
-3. Learning_Engine SHALL 曜日・時間帯ごとのGoal達成率を分析し、達成率の高い時間帯を優先してTriggerを評価する
-4. WHEN 特定のPivot_Goalへの応答率が80%を超えたとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案する
-5. IF ユーザーが学習データのリセットを要求した場合、THEN DagaSoreDeIi_App SHALL 確認ダイアログを表示した後にAction_LogおよびLearning_Engineのモデルをリセットする
+3. WHEN 特定のPivot_Goalへの応答率が80%を超えたとき、Learning_Engine SHALL そのPivot_GoalをPrimary_Goal候補として昇格提案する
+4. IF ユーザーが学習データのリセットを要求した場合、THEN DagaSoreDeIi_App SHALL 確認ダイアログを表示した後にAction_LogおよびLearning_Engineのモデルをリセットする
 
 ---
 
