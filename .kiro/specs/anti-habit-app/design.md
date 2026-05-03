@@ -623,13 +623,18 @@ interface Recommendation {
   actionLevel: ActionLevel; // 共通型定義参照
   actionDescription: string; // 提案内容
   personaMessage: PersonaMessage;
-  responseOptions: ResponseOption[];
   createdAt: string;
   respondedAt: string | null;
   response: ResponseType | null;
 }
 
-type ResponseType = "do_it" | "alternative" | "goal_change" | "free_input";
+// 4択はクライアント側定数として定義（サーバーから返却しない）
+const RESPONSE_OPTIONS: ResponseOption[] = [
+  { type: "do_it", label: "やる" },
+  { type: "alternative", label: "いいえ（別の方法で）" },
+  { type: "goal_change", label: "目標チェンジ" },
+  { type: "free_input", label: "自由入力" },
+];
 
 interface ResponseOption {
   type: ResponseType;
