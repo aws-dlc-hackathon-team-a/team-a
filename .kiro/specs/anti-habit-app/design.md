@@ -171,6 +171,41 @@ sequenceDiagram
 
 ---
 
+### アカウント削除フロー
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App as モバイルApp
+    participant AuthSvc as Auth Service\n(Cognito)
+    participant UserGoalSvc as User & Goal Service\n(Lambda)
+    participant TicketPointSvc as Ticket & Point Service\n(Lambda)
+    participant SimilarUserBatch as Similar User Batch\n(Lambda)
+
+    User->>App: アカウント削除をリクエスト
+    App-->>User: 確認ダイアログ表示\n「すべてのデータが削除されます」
+    User->>App: 削除を承認
+    App->>AuthSvc: deleteAccount(userId)
+    AuthSvc->>UserGoalSvc: 個人データ削除リクエスト\n(User DB全エンティティ)
+    UserGoalSvc->>UserGoalSvc: User・Profile・ProfileUpdateHistory\nGoal・TriggerSettings\nFutureSelfModel・BehaviorModelを削除
+    AuthSvc->>TicketPointSvc: 個人データ削除リクエスト\n(Action Log DB全エンティティ)
+    TicketPointSvc->>TicketPointSvc: ActionLogEntry・ActionTicket\nEffortPointRecord・DailySummary\nMilestoneを削除
+    AuthSvc->>SimilarUserBatch: Similar_User_Data除外リクエスト（非同期）
+    Note over SimilarUserBatch: 当該ユーザーに基づく\nSimilarUserDataレコードを削除
+    AuthSvc->>AuthSvc: Cognitoユーザープールから\nアカウントを削除（最後に実行）
+    AuthSvc-->>App: 削除完了
+    App-->>User: 削除完了メッセージ表示\nログイン画面へ遷移
+```
+
+**削除処理の方針:**
+
+- 全削除処理は72時間以内に完了する（GDPR・個人情報保護法準拠）
+- 各サービスへの削除リクエストは順次実行し、いずれかが失敗した場合はリトライ（最大3回）
+- Cognitoアカウントの削除は最後に実行する（途中失敗時の再試行を可能にするため）
+- Similar_User_Dataの除外は非同期で実行し、完了を待たずにユーザーへ削除完了を通知する
+
+---
+
 ### 共通型定義
 
 design.md全体で使用する型エイリアスをここで一元定義する。

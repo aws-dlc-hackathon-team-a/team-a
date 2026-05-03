@@ -218,7 +218,13 @@
 4. DagaSoreDeIi_App SHALL ユーザーが登録済みのメールアドレスとパスワードでログインできる機能を提供する
 5. DagaSoreDeIi_App SHALL ユーザーがパスワードを忘れた場合に、登録済みメールアドレス宛にパスワードリセット用のリンクを送信する機能を提供する
 6. DagaSoreDeIi_App SHALL ログイン状態をセッションとして保持し、アプリを再起動しても自動的にログイン状態を維持する
-7. DagaSoreDeIi_App SHALL ユーザーがアカウントを削除できる機能を提供する。アカウント削除時は確認ダイアログを表示し、承認後にProfile・Goal・Action_Log・Action_Ticket・Effort_Pointを含むすべての個人データを削除する
+7. DagaSoreDeIi_App SHALL ユーザーがアカウントを削除できる機能を提供する。アカウント削除時は確認ダイアログを表示し、承認後に以下をすべて削除・除外する
+   - User DB：User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel
+   - Action Log DB：ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone
+   - Similar User DB：当該ユーザーの行動データに基づいて生成されたSimilarUserDataレコード
+   - Cognito：ユーザープールからアカウントを削除
+8. WHEN アカウント削除が完了したとき、DagaSoreDeIi_App SHALL 削除完了を確認するメッセージを表示しログイン画面に遷移する
+9. DagaSoreDeIi_App SHALL アカウント削除リクエスト受付から72時間以内にすべての個人データの削除を完了する（GDPR・個人情報保護法への準拠）
 
 ---
 
