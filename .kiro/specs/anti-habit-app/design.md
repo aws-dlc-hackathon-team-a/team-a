@@ -144,6 +144,58 @@ sequenceDiagram
 
 ## コンポーネントとインターフェース
 
+### 0. Auth Service（Amazon Cognito）
+
+ユーザーの認証・アカウント管理を担当するサービス。Amazon Cognitoのユーザープールを使用し、メールアドレス＋パスワード認証を提供する。発行されたCognito `sub`（UUID）がシステム全体のユーザーIDとして使用される。
+
+```typescript
+interface AuthService {
+  // 新規アカウント登録（メール確認メール送信）
+  signUp(email: string, password: string): Promise<{ userId: string }>;
+
+  // メールアドレス確認（確認コード入力）
+  confirmSignUp(email: string, confirmationCode: string): Promise<void>;
+
+  // 確認メール再送信
+  resendConfirmationCode(email: string): Promise<void>;
+
+  // ログイン（JWTトークン発行）
+  signIn(email: string, password: string): Promise<AuthSession>;
+
+  // パスワードリセット（リセットコード送信）
+  forgotPassword(email: string): Promise<void>;
+
+  // パスワードリセット確定（新パスワード設定）
+  confirmForgotPassword(email: string, code: string, newPassword: string): Promise<void>;
+
+  // アカウント削除（Cognitoユーザー削除 + 全個人データ削除）
+  deleteAccount(userId: string): Promise<void>;
+
+  // セッション取得（アプリ再起動時の自動ログイン）
+  getCurrentSession(): Promise<AuthSession | null>;
+}
+
+interface AuthSession {
+  userId: string; // Cognito sub（システム全体のユーザーID）
+  email: string;
+  accessToken: string;
+  idToken: string;
+  refreshToken: string;
+  expiresAt: string; // ISO 8601
+}
+```
+
+**認証フロー（オンボーディング）:**
+
+1. メールアドレス＋パスワード入力 → Cognito `signUp`
+2. 確認コード入力 → Cognito `confirmSignUp`
+3. 自動ログイン → Cognito `signIn`
+4. Profileオンボーディング（要件1）へ遷移
+
+**ログイン失敗制限:** Cognitoのデフォルト機能（5回連続失敗でアカウントロック）を使用する。
+
+---
+
 ### 1. User & Goal Service（Lambda）
 
 ユーザーのプロフィール情報とGoalの管理を担当するLambda。User DBに対するCRUD操作を一元管理する。
@@ -180,19 +232,19 @@ interface GoalService {
 interface StateDetectionModule {
   // 状態検知実行（アプリ起動時）
   detectState(userId: string): Promise<DetectedState>;
-  
+
   // Trigger評価
   evaluateTriggers(state: DetectedState, settings: TriggerSettings): Promise<Trigger | null>;
-  
+
   // 位置情報取得（権限チェック付き）
   getLocationIfPermitted(): Promise<Location | null>;
-  
+
   // 手動起動処理（心理状態の任意入力を受け付けてTrigger生成）
   handleManualTrigger(psychologicalInput?: string): Promise<Trigger>;
-  
+
   // Triggerソース設定取得
   getTriggerSettings(userId: string): Promise<TriggerSettings>;
-  
+
   // 複数Trigger優先度評価
   selectHighestPriorityTrigger(triggers: Trigger[]): Trigger;
 }
@@ -206,54 +258,38 @@ Triggerに基づいてRecommendationを生成するLambda。Learning Engine・Fu
 // --- Recommendation Orchestrator ---
 interface RecommendationService {
   // 初回Recommendation生成（Primary_Goal関連）
-  generateInitialRecommendation(
-    userId: string,
-    trigger: Trigger
-  ): Promise<Recommendation>;
-  
+  generateInitialRecommendation(userId: string, trigger: Trigger): Promise<Recommendation>;
+
   // 同Goal内別アクション提案（「いいえ（別の方法で）」応答時）
-  generateAlternativeAction(
-    userId: string,
-    currentGoalId: string
-  ): Promise<Recommendation>;
-  
+  generateAlternativeAction(userId: string, currentGoalId: string): Promise<Recommendation>;
+
   // Pivot提案（「目標チェンジ」応答時）
-  generatePivotRecommendation(
-    userId: string
-  ): Promise<Recommendation>;
-  
+  generatePivotRecommendation(userId: string): Promise<Recommendation>;
+
   // 最低限行動提案（Pivot後も拒否された場合）
-  generateMinimalActionRecommendation(
-    userId: string
-  ): Promise<Recommendation>;
-  
+  generateMinimalActionRecommendation(userId: string): Promise<Recommendation>;
+
   // 自由入力受付
-  acceptFreeInput(
-    userId: string,
-    input: string
-  ): Promise<Recommendation>;
+  acceptFreeInput(userId: string, input: string): Promise<Recommendation>;
 
   // Persona_Message生成（Effort_Point集計・破棄通知など外部からの呼び出し用）
-  generatePersonaMessage(
-    userId: string,
-    context: MessageContext
-  ): Promise<PersonaMessage>;
+  generatePersonaMessage(userId: string, context: MessageContext): Promise<PersonaMessage>;
 }
 
 // --- Learning Engine モジュール（Lambda内部） ---
 interface LearningEngineModule {
   // 行動モデル取得（7件以上蓄積後にパーソナライズ）
   getBehaviorModel(userId: string): Promise<BehaviorModel>;
-  
+
   // 曜日・時間帯別達成率分析
   analyzeAchievementRate(userId: string): Promise<AchievementRateAnalysis>;
-  
+
   // Pivot_Goal昇格提案チェック（応答率80%超）
   checkPivotGoalPromotion(userId: string): Promise<GoalPromotionSuggestion | null>;
-  
+
   // Action_Log蓄積・Profile自動更新・Future_Self_Model更新
   recordAndUpdate(userId: string, log: ActionLogEntry): Promise<void>;
-  
+
   // 学習データリセット（確認済み）
   resetLearningData(userId: string, confirmed: boolean): Promise<void>;
 }
@@ -262,16 +298,16 @@ interface LearningEngineModule {
 interface FutureSelfModelModule {
   // Future_Self_Model構築（Profile登録時）
   buildModel(userId: string, profile: Profile): Promise<FutureSelfModel>;
-  
+
   // Future_Self_Model取得
   getModel(userId: string): Promise<FutureSelfModel>;
-  
+
   // Similar_User_Data検索（類似プロフィール）
   findSimilarUsers(profile: Profile, minCount: number): Promise<SimilarUserData[]>;
-  
+
   // モデル更新（Action_Log蓄積時）
   updateModel(userId: string, actionLog: ActionLog): Promise<FutureSelfModel>;
-  
+
   // フォールバックモデル生成（類似ユーザー5件未満）
   buildFallbackModel(userId: string, profile: Profile, goals: Goal[]): Promise<FutureSelfModel>;
 }
@@ -279,24 +315,20 @@ interface FutureSelfModelModule {
 // --- Persona Message モジュール（Lambda内部・Bedrock呼び出し） ---
 interface PersonaMessageModule {
   // Recommendation用メッセージ生成
-  generateRecommendationMessage(
-    recommendation: Recommendation,
-    context: MessageContext
-  ): Promise<PersonaMessage>;
-  
+  generateRecommendationMessage(recommendation: Recommendation, context: MessageContext): Promise<PersonaMessage>;
+
   // Effort_Point付与時メッセージ生成
   generateEffortPointMessage(result: EffortPointResult): Promise<PersonaMessage>;
-  
+
   // Action_Ticket破棄時メッセージ生成
   generateDiscardMessage(discardResult: DiscardResult): Promise<PersonaMessage>;
-  
+
   // Goal達成メッセージ生成
-  generateAchievementMessage(
-    goalType: 'primary' | 'pivot' | 'minimal'
-  ): Promise<PersonaMessage>;
+  generateAchievementMessage(goalType: "primary" | "pivot" | "minimal"): Promise<PersonaMessage>;
 }
 ```
-```
+
+````
 
 ### 5. Ticket & Point Service（Lambda）
 
@@ -321,7 +353,7 @@ interface EffortPointService {
   setDailyResetTime(userId: string, time: string): Promise<void>;
   checkMilestone(userId: string, newTotal: number): Promise<Milestone | null>;
 }
-```
+````
 
 ---
 
@@ -331,11 +363,12 @@ interface EffortPointService {
 
 ```typescript
 interface User {
-  userId: string;           // UUID
+  userId: string; // Cognito sub（UUID）
   email: string;
-  createdAt: string;        // ISO 8601
+  emailVerified: boolean; // メールアドレス確認済みフラグ
+  createdAt: string; // ISO 8601
   updatedAt: string;
-  consentGiven: boolean;    // Similar_User_Data利用同意
+  consentGiven: boolean; // Similar_User_Data利用同意
   sensitiveDataConsent: {
     location: boolean;
     screenTime: boolean;
@@ -347,27 +380,27 @@ interface Profile {
   name: string;
   age: number;
   occupation: string;
-  interests: string[];          // 興味分野（複数）
-  lifestyleType: 'morning' | 'night' | 'flexible';  // 朝型/夜型/フレキシブル
-  currentConcerns: string[];    // 現在の悩み（複数）
+  interests: string[]; // 興味分野（複数）
+  lifestyleType: "morning" | "night" | "flexible"; // 朝型/夜型/フレキシブル
+  currentConcerns: string[]; // 現在の悩み（複数）
   behaviorTendencyScore: BehaviorTendencyScore;
-  behaviorPattern: BehaviorPattern | null;  // 過去30日分析結果
+  behaviorPattern: BehaviorPattern | null; // 過去30日分析結果
   onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 interface BehaviorTendencyScore {
-  consistency: number;      // 継続性スコア (0-100)
-  pivotFrequency: number;   // Pivot頻度スコア (0-100)
-  morningActivity: number;  // 朝の活動スコア (0-100)
-  eveningActivity: number;  // 夜の活動スコア (0-100)
+  consistency: number; // 継続性スコア (0-100)
+  pivotFrequency: number; // Pivot頻度スコア (0-100)
+  morningActivity: number; // 朝の活動スコア (0-100)
+  eveningActivity: number; // 夜の活動スコア (0-100)
 }
 
 interface BehaviorPattern {
-  strongPatterns: string[];   // 得意な行動パターン
+  strongPatterns: string[]; // 得意な行動パターン
   analyzedAt: string;
-  basedOnDays: number;        // 分析対象日数（最大30）
+  basedOnDays: number; // 分析対象日数（最大30）
 }
 
 interface ProfileUpdateHistory {
@@ -377,7 +410,7 @@ interface ProfileUpdateHistory {
   previousValues: Record<string, unknown>;
   newValues: Record<string, unknown>;
   updatedAt: string;
-  updateSource: 'manual' | 'learning_engine';
+  updateSource: "manual" | "learning_engine";
 }
 ```
 
@@ -385,11 +418,11 @@ interface ProfileUpdateHistory {
 
 ```typescript
 interface Goal {
-  goalId: string;           // UUID
+  goalId: string; // UUID
   userId: string;
-  title: string;            // 例：「英語を習慣的にやりたい」
+  title: string; // 例：「英語を習慣的にやりたい」
   description: string;
-  goalType: 'primary' | 'pivot';
+  goalType: "primary" | "pivot";
   isPrimary: boolean;
   createdAt: string;
   updatedAt: string;
@@ -399,8 +432,8 @@ interface Goal {
 interface AIPivotCandidate {
   title: string;
   description: string;
-  basedOnProfileField: string;  // 参照したProfileフィールド
-  confidence: number;           // 提案信頼度 (0-1)
+  basedOnProfileField: string; // 参照したProfileフィールド
+  confidence: number; // 提案信頼度 (0-1)
 }
 ```
 
@@ -411,9 +444,9 @@ interface DetectedState {
   userId: string;
   detectedAt: string;
   location: Location | null;
-  psychologicalInput: string | null;  // 手動起動時の任意入力
-  stayDurationMinutes: number | null;  // 同一位置滞在時間
-  triggerSource: 'app_launch' | 'manual';
+  psychologicalInput: string | null; // 手動起動時の任意入力
+  stayDurationMinutes: number | null; // 同一位置滞在時間
+  triggerSource: "app_launch" | "manual";
 }
 
 interface Location {
@@ -424,10 +457,10 @@ interface Location {
 
 interface Trigger {
   triggerId: string;
-  triggerType: 'long_stay_home' | 'manual';
-  priority: number;           // 優先度（高いほど優先）
+  triggerType: "long_stay_home" | "manual";
+  priority: number; // 優先度（高いほど優先）
   detectedAt: string;
-  psychologicalInput: string | null;  // 手動起動時の任意入力（Persona_Messageパーソナライズに使用）
+  psychologicalInput: string | null; // 手動起動時の任意入力（Persona_Messageパーソナライズに使用）
   sourceData: Record<string, unknown>;
 }
 
@@ -447,8 +480,8 @@ interface Recommendation {
   userId: string;
   triggerId: string;
   goalId: string;
-  goalType: 'primary' | 'pivot' | 'minimal';
-  actionDescription: string;   // 提案内容
+  goalType: "primary" | "pivot" | "minimal";
+  actionDescription: string; // 提案内容
   personaMessage: PersonaMessage;
   responseOptions: ResponseOption[];
   createdAt: string;
@@ -456,7 +489,7 @@ interface Recommendation {
   response: ResponseType | null;
 }
 
-type ResponseType = 'do_it' | 'alternative' | 'goal_change' | 'free_input';
+type ResponseType = "do_it" | "alternative" | "goal_change" | "free_input";
 
 interface ResponseOption {
   type: ResponseType;
@@ -465,8 +498,8 @@ interface ResponseOption {
 
 interface PersonaMessage {
   messageId: string;
-  content: string;             // 生成されたメッセージ本文
-  tone: 'encouragement' | 'praise' | 'pivot_acceptance' | 'minimal_push';
+  content: string; // 生成されたメッセージ本文
+  tone: "encouragement" | "praise" | "pivot_acceptance" | "minimal_push";
   generatedAt: string;
 }
 ```
@@ -477,11 +510,11 @@ interface PersonaMessage {
 interface ActionTicket {
   ticketId: string;
   userId: string;
-  recommendationId: string | null;  // 自由入力の場合はnull
+  recommendationId: string | null; // 自由入力の場合はnull
   goalId: string;
-  goalType: 'primary' | 'pivot' | 'minimal' | 'free';
+  goalType: "primary" | "pivot" | "minimal" | "free";
   actionDescription: string;
-  status: 'open' | 'done' | 'discarded';
+  status: "open" | "done" | "discarded";
   createdAt: string;
   completedAt: string | null;
   discardedAt: string | null;
@@ -500,9 +533,9 @@ interface DiscardResult {
 interface EffortPointRecord {
   recordId: string;
   userId: string;
-  date: string;               // YYYY-MM-DD
-  primaryGoalPoints: number;  // Primary_Goal完了分 (10pt/件)
-  pivotGoalPoints: number;    // Pivot_Goal完了分 (7pt/件)
+  date: string; // YYYY-MM-DD
+  primaryGoalPoints: number; // Primary_Goal完了分 (10pt/件)
+  pivotGoalPoints: number; // Pivot_Goal完了分 (7pt/件)
   minimalActionPoints: number; // 最低限行動完了分 (3pt/件)
   totalDayPoints: number;
   cumulativeTotal: number;
@@ -512,7 +545,7 @@ interface EffortPointRecord {
 
 interface PointHistory {
   userId: string;
-  period: 'weekly' | 'monthly';
+  period: "weekly" | "monthly";
   dataPoints: { date: string; points: number }[];
   totalInPeriod: number;
 }
@@ -520,7 +553,7 @@ interface PointHistory {
 interface Milestone {
   milestoneId: string;
   userId: string;
-  totalPoints: number;        // 100の倍数
+  totalPoints: number; // 100の倍数
   badgeType: string;
   achievedAt: string;
 }
@@ -534,12 +567,12 @@ interface ActionLogEntry {
   userId: string;
   ticketId: string;
   goalId: string;
-  goalType: 'primary' | 'pivot' | 'minimal' | 'free';
+  goalType: "primary" | "pivot" | "minimal" | "free";
   actionDescription: string;
   responseType: ResponseType;
   completedAt: string;
-  dayOfWeek: number;          // 0=日曜, 6=土曜
-  hourOfDay: number;          // 0-23
+  dayOfWeek: number; // 0=日曜, 6=土曜
+  hourOfDay: number; // 0-23
 }
 ```
 
@@ -549,8 +582,8 @@ interface ActionLogEntry {
 interface FutureSelfModel {
   modelId: string;
   userId: string;
-  basedOnSimilarUsers: number;  // 参照した類似ユーザー数
-  isFallback: boolean;          // 5件未満の場合true
+  basedOnSimilarUsers: number; // 参照した類似ユーザー数
+  isFallback: boolean; // 5件未満の場合true
   successStories: SuccessStory[];
   updatedAt: string;
 }
@@ -559,12 +592,12 @@ interface SuccessStory {
   storyId: string;
   goalCategory: string;
   timeframeMonths: number;
-  outcomeDescription: string;   // 「筋トレを始めて3ヶ月でこうなった」
-  similarityScore: number;      // 類似度スコア (0-1)
+  outcomeDescription: string; // 「筋トレを始めて3ヶ月でこうなった」
+  similarityScore: number; // 類似度スコア (0-1)
 }
 
 interface SimilarUserData {
-  anonymizedId: string;         // 個人特定不可の匿名ID
+  anonymizedId: string; // 個人特定不可の匿名ID
   profileSimilarityScore: number;
   goalCategories: string[];
   actionPatterns: string[];
@@ -575,10 +608,10 @@ interface SimilarUserData {
 interface BehaviorModel {
   modelId: string;
   userId: string;
-  isPersonalized: boolean;      // 7件以上蓄積でtrue
-  achievementRateByDayHour: Record<string, number>;  // "Mon-09": 0.8
+  isPersonalized: boolean; // 7件以上蓄積でtrue
+  achievementRateByDayHour: Record<string, number>; // "Mon-09": 0.8
   preferredGoalTypes: string[];
-  pivotGoalResponseRates: Record<string, number>;    // goalId: rate
+  pivotGoalResponseRates: Record<string, number>; // goalId: rate
   updatedAt: string;
 }
 ```
@@ -587,12 +620,11 @@ interface BehaviorModel {
 
 ## 正確性プロパティ（Correctness Properties）
 
-
-*プロパティとは、システムのすべての有効な実行において真であるべき特性または振る舞いです。つまり、システムが何をすべきかについての形式的な記述です。プロパティは、人間が読める仕様と機械で検証可能な正確性保証の橋渡しとなります。*
+_プロパティとは、システムのすべての有効な実行において真であるべき特性または振る舞いです。つまり、システムが何をすべきかについての形式的な記述です。プロパティは、人間が読める仕様と機械で検証可能な正確性保証の橋渡しとなります。_
 
 ### Property 1: Profile登録時のPivot_Goal候補自動生成
 
-*For any* 有効なProfileが登録されたとき、システムは必ず3件以上のPivot_Goal候補を自動生成しなければならない
+_For any_ 有効なProfileが登録されたとき、システムは必ず3件以上のPivot_Goal候補を自動生成しなければならない
 
 **Validates: Requirements 1.3**
 
@@ -600,7 +632,7 @@ interface BehaviorModel {
 
 ### Property 2: 未完了Profileの欠損フィールド検出
 
-*For any* 必須フィールドの一部が欠けた不完全なProfile入力に対して、システムはすべての未入力フィールドを正確に特定して報告しなければならない
+_For any_ 必須フィールドの一部が欠けた不完全なProfile入力に対して、システムはすべての未入力フィールドを正確に特定して報告しなければならない
 
 **Validates: Requirements 1.5**
 
@@ -608,7 +640,7 @@ interface BehaviorModel {
 
 ### Property 3: Primary_Goal設定の一意性
 
-*For any* ユーザーのGoal一覧において、1件をPrimary_Goalとして設定した後は、必ずちょうど1件のGoalのみがisPrimary=trueとなっていなければならない
+_For any_ ユーザーのGoal一覧において、1件をPrimary_Goalとして設定した後は、必ずちょうど1件のGoalのみがisPrimary=trueとなっていなければならない
 
 **Validates: Requirements 2.2**
 
@@ -616,7 +648,7 @@ interface BehaviorModel {
 
 ### Property 4: Pivot_Goal候補の完全性
 
-*For any* Primary_Goalが設定されたGoal一覧において、Primary_Goal以外のすべてのGoalがPivot_Goal候補として分類されていなければならない
+_For any_ Primary_Goalが設定されたGoal一覧において、Primary_Goal以外のすべてのGoalがPivot_Goal候補として分類されていなければならない
 
 **Validates: Requirements 2.3**
 
@@ -624,7 +656,7 @@ interface BehaviorModel {
 
 ### Property 5: 長時間在宅Triggerの閾値
 
-*For any* 自宅での滞在時間において、120分以上の場合は「長時間在宅」Triggerが発火し、120分未満の場合は発火しないという関係が成立しなければならない
+_For any_ 自宅での滞在時間において、120分以上の場合は「長時間在宅」Triggerが発火し、120分未満の場合は発火しないという関係が成立しなければならない
 
 **Validates: Requirements 3.3**
 
@@ -632,7 +664,7 @@ interface BehaviorModel {
 
 ### Property 6: 複数Trigger発火時の優先度選択
 
-*For any* 同時に発火した複数のTriggerの集合において、選択されるTriggerはちょうど1件であり、かつその集合の中で最も高い優先度を持つTriggerでなければならない
+_For any_ 同時に発火した複数のTriggerの集合において、選択されるTriggerはちょうど1件であり、かつその集合の中で最も高い優先度を持つTriggerでなければならない
 
 **Validates: Requirements 3.7**
 
@@ -640,7 +672,7 @@ interface BehaviorModel {
 
 ### Property 7: 初回RecommendationとPrimary_Goalの関連性
 
-*For any* Primary_Goalが設定されたユーザーに対して、Triggerが発火したときに生成される初回Recommendationは、必ずそのPrimary_Goalに関連した行動提案でなければならない
+_For any_ Primary_Goalが設定されたユーザーに対して、Triggerが発火したときに生成される初回Recommendationは、必ずそのPrimary_Goalに関連した行動提案でなければならない
 
 **Validates: Requirements 4.2**
 
@@ -648,7 +680,7 @@ interface BehaviorModel {
 
 ### Property 8: Recommendation応答によるAction_Ticket生成
 
-*For any* Recommendationへの有効な応答（やる/いいえ（別の方法で）/目標チェンジ/自由入力）に対して、行動内容・対象Goal・生成日時を含むAction_TicketがOpen（未完了）ステータスで生成されなければならない
+_For any_ Recommendationへの有効な応答（やる/いいえ（別の方法で）/目標チェンジ/自由入力）に対して、行動内容・対象Goal・生成日時を含むAction_TicketがOpen（未完了）ステータスで生成されなければならない
 
 **Validates: Requirements 4.4, 5.6, 12.1**
 
@@ -656,7 +688,7 @@ interface BehaviorModel {
 
 ### Property 9: Action_Ticket完了のAction_Log記録
 
-*For any* Action_TicketがDoneに更新されたとき、完了日時が記録され、かつAction_Logに対応するエントリが追加されていなければならない
+_For any_ Action_TicketがDoneに更新されたとき、完了日時が記録され、かつAction_Logに対応するエントリが追加されていなければならない
 
 **Validates: Requirements 5.9, 12.3**
 
@@ -664,7 +696,7 @@ interface BehaviorModel {
 
 ### Property 10: Pivot提案のPersona_Messageスタイル
 
-*For any* Pivot提案（Pivot_Goal・最低限行動を含む）において、メッセージは必ずFuture_Self_ModelのPersona_Messageスタイル（一人称「俺/私」、二人称「お前/あなた」の口語体）で生成されなければならない
+_For any_ Pivot提案（Pivot_Goal・最低限行動を含む）において、メッセージは必ずFuture_Self_ModelのPersona_Messageスタイル（一人称「俺/私」、二人称「お前/あなた」の口語体）で生成されなければならない
 
 **Validates: Requirements 5.3, 9.1, 9.2**
 
@@ -672,7 +704,7 @@ interface BehaviorModel {
 
 ### Property 11: Goal完了によるProfile行動傾向スコア更新
 
-*For any* いずれかのGoalに関連する行動が完了したとき、ProfileのbehaviorTendencyScoreが更新されていなければならない
+_For any_ いずれかのGoalに関連する行動が完了したとき、ProfileのbehaviorTendencyScoreが更新されていなければならない
 
 **Validates: Requirements 6.1**
 
@@ -680,7 +712,7 @@ interface BehaviorModel {
 
 ### Property 12: Pivot_Goal昇格提案の閾値
 
-*For any* Pivot_Goalに対して、連続3日以上の完了記録がある場合、またはそのPivot_Goalへの応答率が80%を超えた場合、Learning_EngineはそのゴールをPrimary_Goal候補として昇格提案しなければならない
+_For any_ Pivot_Goalに対して、連続3日以上の完了記録がある場合、またはそのPivot_Goalへの応答率が80%を超えた場合、Learning_EngineはそのゴールをPrimary_Goal候補として昇格提案しなければならない
 
 **Validates: Requirements 6.2, 10.4**
 
@@ -688,7 +720,7 @@ interface BehaviorModel {
 
 ### Property 13: Effort_Pointのゴール種別別計算
 
-*For any* Done済みAction_Ticketの集合において、Primary_Goalのチケットには10ポイント、Pivot_Goalのチケットには7ポイント、最低限行動のチケットには3ポイントが正確に付与され、合計ポイントはこれらの総和と一致しなければならない
+_For any_ Done済みAction_Ticketの集合において、Primary_Goalのチケットには10ポイント、Pivot_Goalのチケットには7ポイント、最低限行動のチケットには3ポイントが正確に付与され、合計ポイントはこれらの総和と一致しなければならない
 
 **Validates: Requirements 7.1, 7.2, 7.3, 7.4**
 
@@ -696,7 +728,7 @@ interface BehaviorModel {
 
 ### Property 14: マイルストーン達成の検出
 
-*For any* 累計Effort_Pointが100の倍数に達したとき、特別な達成メッセージとバッジが生成されなければならない
+_For any_ 累計Effort_Pointが100の倍数に達したとき、特別な達成メッセージとバッジが生成されなければならない
 
 **Validates: Requirements 7.7**
 
@@ -704,7 +736,7 @@ interface BehaviorModel {
 
 ### Property 15: Future_Self_Model構築
 
-*For any* 登録されたProfileに対して、Similar_User_Dataを参照してFuture_Self_Modelが構築されなければならない（類似ユーザーが5件未満の場合はフォールバックモデルを使用）
+_For any_ 登録されたProfileに対して、Similar_User_Dataを参照してFuture_Self_Modelが構築されなければならない（類似ユーザーが5件未満の場合はフォールバックモデルを使用）
 
 **Validates: Requirements 8.2, 8.7**
 
@@ -712,7 +744,7 @@ interface BehaviorModel {
 
 ### Property 16: Similar_User_Dataの匿名性
 
-*For any* Similar_User_Dataとして収集されたレコードは、氏名・メールアドレス・電話番号などの個人を特定できる情報フィールドを含んではならない
+_For any_ Similar_User_Dataとして収集されたレコードは、氏名・メールアドレス・電話番号などの個人を特定できる情報フィールドを含んではならない
 
 **Validates: Requirements 8.6**
 
@@ -720,7 +752,7 @@ interface BehaviorModel {
 
 ### Property 17: Action_Log蓄積によるFuture_Self_Model更新
 
-*For any* 新しいAction_Logエントリが追加されたとき、対応するFuture_Self_ModelのupdatedAtタイムスタンプが更新されていなければならない
+_For any_ 新しいAction_Logエントリが追加されたとき、対応するFuture_Self_ModelのupdatedAtタイムスタンプが更新されていなければならない
 
 **Validates: Requirements 8.4**
 
@@ -728,7 +760,7 @@ interface BehaviorModel {
 
 ### Property 18: Learning_Engineのパーソナライズ切り替え
 
-*For any* ユーザーのAction_Logが7件以上蓄積されたとき、BehaviorModelのisPersonalizedフラグがtrueになっていなければならない
+_For any_ ユーザーのAction_Logが7件以上蓄積されたとき、BehaviorModelのisPersonalizedフラグがtrueになっていなければならない
 
 **Validates: Requirements 10.2**
 
@@ -736,7 +768,7 @@ interface BehaviorModel {
 
 ### Property 19: 時間帯別達成率の正確な分析
 
-*For any* Action_Logデータセットにおいて、曜日・時間帯ごとの達成率分析は、各スロットの完了数/試行数の比率を正確に反映していなければならない
+_For any_ Action_Logデータセットにおいて、曜日・時間帯ごとの達成率分析は、各スロットの完了数/試行数の比率を正確に反映していなければならない
 
 **Validates: Requirements 10.3**
 
@@ -744,13 +776,19 @@ interface BehaviorModel {
 
 ### Property 20: 1日の終わりのOpen_Ticket自動破棄
 
-*For any* 日次集計タイミングにおいてOpenステータスのまま残っているAction_Ticketは、すべてdiscardedステータスに遷移しなければならない
+_For any_ 日次集計タイミングにおいてOpenステータスのまま残っているAction_Ticketは、すべてdiscardedステータスに遷移しなければならない
 
 **Validates: Requirements 12.4**
 
 ---
 
 ## エラーハンドリング
+
+### 認証エラー
+
+- ログイン失敗時はCognitoのエラーコードに基づいて「メールアドレスまたはパスワードが正しくありません」という汎用メッセージを表示する（セキュリティのため、どちらが間違いかは明示しない）
+- メール未確認状態でのログイン試行時は確認メール再送信オプションを提示する
+- アクセストークン期限切れ時はリフレッシュトークンで自動更新し、リフレッシュトークンも期限切れの場合はログイン画面にリダイレクトする
 
 ### 位置情報権限拒否
 
@@ -803,6 +841,7 @@ interface BehaviorModel {
 純粋な関数・ビジネスロジックに対して具体的な例を用いてテストします。
 
 **対象コンポーネント:**
+
 - Effort_Point計算ロジック（ゴール種別ごとのポイント値）
 - Trigger優先度選択ロジック
 - Profile完全性チェック
@@ -812,6 +851,7 @@ interface BehaviorModel {
 **フレームワーク:** Jest（React Native）/ pytest（バックエンドPython）
 
 **方針:**
+
 - 具体的な例・エッジケース・エラー条件に集中
 - プロパティベーステストでカバーされる入力範囲はユニットテストで重複させない
 - 各コンポーネントのモック境界を明確に定義する
@@ -821,10 +861,12 @@ interface BehaviorModel {
 上記の Correctness Properties セクションで定義した20のプロパティを、プロパティベーステストとして実装します。
 
 **フレームワーク:**
+
 - TypeScript/React Native: `fast-check`
 - Python（バックエンド）: `hypothesis`
 
 **設定:**
+
 - 各プロパティテストは最低100回のイテレーションを実行する
 - 各テストには以下の形式でタグを付与する:
   ```
@@ -832,6 +874,7 @@ interface BehaviorModel {
   ```
 
 **ジェネレーター設計:**
+
 - `arbitraryProfile`: 有効なProfile（必須フィールドすべて含む）を生成
 - `arbitraryIncompleteProfile`: ランダムなフィールドが欠けたProfileを生成
 - `arbitraryGoalList`: 1件以上のGoalリスト（Primary_Goal含む）を生成
@@ -840,6 +883,7 @@ interface BehaviorModel {
 - `arbitraryTriggerSet`: 優先度が異なる複数のTriggerを生成
 
 **重点プロパティ（優先実装）:**
+
 1. Property 8: Recommendation応答によるAction_Ticket生成（コアフロー）
 2. Property 13: Effort_Pointのゴール種別別計算（報酬システム）
 3. Property 3: Primary_Goal設定の一意性（データ整合性）
@@ -851,12 +895,14 @@ interface BehaviorModel {
 外部サービス（Amazon Bedrock、DynamoDB、EventBridge）との連携を検証します。
 
 **対象:**
+
 - LLM（Amazon Bedrock）呼び出しとPersona_Message生成
 - DynamoDBへのデータ永続化と取得
 - EventBridgeによる日次集計スケジューリング
 - Cognito認証フロー
 
 **方針:**
+
 - 1〜3件の代表的な例でテスト（PBTは不適切）
 - テスト環境ではLocalStackまたはAWSテストアカウントを使用
 - 外部サービスのモックはユニットテスト・PBTのみで使用
@@ -869,8 +915,8 @@ interface BehaviorModel {
 
 ### テストカバレッジ目標
 
-| レイヤー | カバレッジ目標 |
-|---------|-------------|
-| ユニットテスト | 80%以上（ビジネスロジック） |
-| プロパティベーステスト | 全20プロパティ実装 |
-| 統合テスト | 主要フロー（起動→Recommendation→Ticket→Point）のE2E |
+| レイヤー               | カバレッジ目標                                      |
+| ---------------------- | --------------------------------------------------- |
+| ユニットテスト         | 80%以上（ビジネスロジック）                         |
+| プロパティベーステスト | 全20プロパティ実装                                  |
+| 統合テスト             | 主要フロー（起動→Recommendation→Ticket→Point）のE2E |
