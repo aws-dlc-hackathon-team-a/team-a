@@ -2,12 +2,12 @@
 
 ## 実行チェックリスト
 
-- [ ] 1. コンポーネント識別と責務定義（components.md）
-- [ ] 2. コンポーネントメソッド定義（component-methods.md）
-- [ ] 3. サービス層設計（services.md）
-- [ ] 4. コンポーネント依存関係設計（component-dependency.md）
-- [ ] 5. 統合設計ドキュメント（application-design.md）
-- [ ] 6. 設計の完全性・一貫性検証
+- [x] 1. コンポーネント識別と責務定義（components.md）
+- [x] 2. コンポーネントメソッド定義（component-methods.md）
+- [x] 3. サービス層設計（services.md）
+- [x] 4. コンポーネント依存関係設計（component-dependency.md）
+- [x] 5. 統合設計ドキュメント（application-design.md）
+- [x] 6. 設計の完全性・一貫性検証
 
 ---
 
