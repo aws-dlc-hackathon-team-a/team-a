@@ -22,7 +22,7 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 ┌──────────────────────▼──────────────────────────────┐
 │              Backend Lambda Functions (AWS)          │
 │  Auth / Profile+Goal / ActionTicket / Recommendation │
-│  EffortPoint / LearningEngine(Batch)                 │
+│  DailyAggregation / LearningEngine(Batch)            │
 └──────┬───────────────┬──────────────────────────────┘
        │               │
 ┌──────▼──────┐  ┌─────▼──────────────────────────────┐
@@ -157,12 +157,12 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 2.3 ActionTicketLambda
 
-| 項目         | 内容                                                                                                                                               |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                                                                                    |
-| **責務**     | Action_Ticketの生成・一覧取得・Done申告・自動破棄処理・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point付与を連携する |
-| **トリガー** | API Gateway /tickets/{userId}、EventBridge（日次集計タイミングでの自動破棄）                                                                       |
-| **依存**     | DynamoDB（UserDB・ActionLogDB）、EffortPointLambda（Done時に連携）                                                                                 |
+| 項目         | 内容                                                                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**     | AWS Lambda 関数                                                                                                                                                                                    |
+| **責務**     | Action_Ticketの生成・一覧取得・Done申告・自動破棄処理・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point計算・付与・マイルストーン判定をこのLambda内で完結して処理する |
+| **トリガー** | API Gateway /tickets/{userId}、EventBridge（日次集計タイミングでの自動破棄）                                                                                                                       |
+| **依存**     | DynamoDB（UserDB・ActionLogDB）                                                                                                                                                                    |
 
 ### 2.4 RecommendationLambda
 
@@ -173,14 +173,14 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **トリガー** | API Gateway POST /recommendations/{userId}                                                                                                                        |
 | **依存**     | DynamoDB（UserDB・ActionLogDB）、Amazon Bedrock                                                                                                                   |
 
-### 2.5 EffortPointLambda
+### 2.5 DailyAggregationLambda
 
-| 項目         | 内容                                                                                                                          |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                                                               |
-| **責務**     | Effort_Point付与（goalType/actionLevelに応じた計算）・累計管理・日次サマリー生成・週間/月間集計・マイルストーン達成判定を担う |
-| **トリガー** | ActionTicketLambdaからの内部呼び出し、EventBridge（日次集計タイミング）                                                       |
-| **依存**     | DynamoDB（ActionLogDB）                                                                                                       |
+| 項目         | 内容                                                                               |
+| ------------ | ---------------------------------------------------------------------------------- |
+| **種別**     | AWS Lambda 関数                                                                    |
+| **責務**     | 日次集計処理（DailySummary生成・週間/月間集計・累計Effort_Point取得API提供）を担う |
+| **トリガー** | EventBridge（日次集計タイミング）、API Gateway（集計データ取得）                   |
+| **依存**     | DynamoDB（ActionLogDB）                                                            |
 
 ### 2.6 LearningEngineLambda
 
@@ -246,10 +246,10 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 4.3 EventBridgeScheduler
 
-| 項目     | 内容                                                                                                                                                       |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別** | Amazon EventBridge Scheduler                                                                                                                               |
-| **責務** | 定期実行トリガーを管理する。LearningEngineLambda（毎週月曜0時）・ActionTicketLambda自動破棄（ユーザー設定の集計時刻）・EffortPointLambda日次集計を発火する |
+| 項目     | 内容                                                                                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別** | Amazon EventBridge Scheduler                                                                                                                                    |
+| **責務** | 定期実行トリガーを管理する。LearningEngineLambda（毎週月曜0時）・ActionTicketLambda自動破棄（ユーザー設定の集計時刻）・DailyAggregationLambda日次集計を発火する |
 
 ---
 
@@ -273,7 +273,7 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 14  | ProfileGoalLambda       | Backend      | Lambda               |
 | 15  | ActionTicketLambda      | Backend      | Lambda               |
 | 16  | RecommendationLambda    | Backend      | Lambda               |
-| 17  | EffortPointLambda       | Backend      | Lambda               |
+| 17  | DailyAggregationLambda  | Backend      | Lambda               |
 | 18  | LearningEngineLambda    | Backend      | Lambda（週次バッチ） |
 | 19  | BackendErrorHandler     | Backend      | 共通ミドルウェア     |
 | 20  | UserDB                  | データストア | DynamoDB             |

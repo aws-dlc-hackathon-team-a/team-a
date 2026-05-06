@@ -154,11 +154,22 @@ async function updateGoalPriority(userId: string, goalId: string, priority: numb
 async function createTicket(userId: string, input: CreateTicketInput): Promise<ActionTicket>;
 async function getOpenTickets(userId: string): Promise<ActionTicket[]>;
 async function completeTicket(userId: string, ticketId: string): Promise<CompleteTicketResult>;
-// completeTicket 内部: Action_Log記録 + EffortPoint付与を連携
+// completeTicket 内部:
+//   1. ActionLogDB に ActionLogEntry 書き込み（リアルタイム）
+//   2. calculatePoints() でポイント計算
+//   3. ActionLogDB に EffortPointRecord 書き込み
+//   4. checkMilestone() でマイルストーン判定
+//   5. CompleteTicketResult 返却
 
 // 自動破棄（EventBridge トリガー）
 async function expireTickets(userId: string, aggregationTime: number): Promise<ExpireTicketsResult>;
 async function getExpiredTicketHistory(userId: string): Promise<ExpiredTicket[]>;
+
+// Effort_Point 計算（純粋関数 — PBT対象）
+function calculatePoints(goalType: "primary" | "pivot", actionLevel: "normal" | "minimal"): number;
+
+// マイルストーン判定
+async function checkMilestone(userId: string, totalPoints: number): Promise<Milestone | null>;
 ```
 
 ---
@@ -187,31 +198,17 @@ function selectPromptStrategy(actionLogCount: number): "default" | "personalized
 
 ---
 
-## 9. EffortPointLambda
+## 9. DailyAggregationLambda
 
 ```typescript
-// Effort_Point 付与
-async function awardPoints(
-  userId: string,
-  ticketId: string,
-  goalType: "primary" | "pivot",
-  actionLevel: "normal" | "minimal",
-): Promise<EffortPointRecord>;
+// 日次集計（EventBridge トリガー）
+async function runDailyAggregation(userId: string): Promise<DailyAggregationResult>;
 
-// 集計
+// 集計データ取得（API Gateway トリガー）
 async function getDailySummary(userId: string, date: string): Promise<DailySummary>;
 async function getWeeklySummary(userId: string, weekStart: string): Promise<WeeklySummary>;
 async function getMonthlySummary(userId: string, month: string): Promise<MonthlySummary>;
 async function getTotalPoints(userId: string): Promise<number>;
-
-// マイルストーン判定
-async function checkMilestone(userId: string, totalPoints: number): Promise<Milestone | null>;
-
-// 日次集計（EventBridge トリガー）
-async function runDailyAggregation(userId: string): Promise<DailyAggregationResult>;
-
-// Effort_Point 計算（純粋関数 — PBT対象）
-function calculatePoints(goalType: "primary" | "pivot", actionLevel: "normal" | "minimal"): number;
 ```
 
 ---

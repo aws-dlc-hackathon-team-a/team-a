@@ -22,11 +22,11 @@
 | APIClient                | AuthService(FE)（JWTトークン取得）                                             |
 | AccountLambda            | UserDB, ActionLogDB, SimilarUserDB, CognitoUserPool                            |
 | UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                     |
-| ActionTicketLambda       | UserDB, ActionLogDB, EffortPointLambda, BackendErrorHandler                    |
+| ActionTicketLambda       | UserDB, ActionLogDB, BackendErrorHandler                                       |
 | RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
-| EffortPointLambda        | ActionLogDB, BackendErrorHandler                                               |
+| DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                               |
 | LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
-| EventBridgeScheduler     | LearningEngineLambda, ActionTicketLambda, EffortPointLambda                    |
+| EventBridgeScheduler     | LearningEngineLambda, ActionTicketLambda, DailyAggregationLambda               |
 
 ---
 
@@ -105,10 +105,10 @@ ActionTicketScreens / HomeScreen
       → API Gateway
         → ActionTicketLambda
           → ActionLogDB（ActionLogEntry書き込み・リアルタイム）
-          → ActionTicketLambda → EffortPointLambda（内部呼び出し）
-            → ActionLogDB（EffortPointRecord書き込み）
-            ← { pointsAwarded, totalPoints, milestoneReached }
-          ← CompleteTicketResult
+          → ActionTicketLambda.calculatePoints()（ポイント計算）
+          → ActionLogDB（EffortPointRecord書き込み）
+          → ActionTicketLambda.checkMilestone()（マイルストーン判定）
+          ← CompleteTicketResult { ticket, pointsAwarded, totalPoints, milestoneReached }
       ← CompleteTicketResult
     ← CompleteTicketResult
   → ZustandStore更新（ticketSlice, effortPointSlice）
@@ -123,7 +123,7 @@ EventBridgeScheduler（ユーザー設定の集計時刻）
     → ActionLogDB（Open Ticketを破棄ステータスに更新）
     → ActionLogDB（DailySummary書き込み）
     ← ExpireTicketsResult（破棄件数・Done件数）
-  → EffortPointLambda.runDailyAggregation()
+  → DailyAggregationLambda.runDailyAggregation()
     → ActionLogDB（DailySummary集計）
   ※ 破棄メッセージ（Persona_Messageトーン）は次回アプリ起動時にフロントエンドが表示
 ```
@@ -167,8 +167,8 @@ ProfileScreens（アカウント削除ボタン）
 | パターン                     | 使用箇所                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------- |
 | **同期REST（HTTPS）**        | Frontend → API Gateway → Lambda（全通常API）                               |
-| **Lambda内部呼び出し**       | ActionTicketLambda → EffortPointLambda（Done時）                           |
-| **EventBridge スケジュール** | 週次バッチ（LearningEngine）・日次集計（ActionTicket/EffortPoint）         |
+| **Lambda内部呼び出し**       | なし（ActionTicketLambdaがEffort_Point処理を内包）                         |
+| **EventBridge スケジュール** | 週次バッチ（LearningEngine）・日次集計（ActionTicket/DailyAggregation）    |
 | **Amplify Auth直接**         | Frontend → CognitoUserPool（サインアップ・サインイン・パスワードリセット） |
 
 ---
@@ -176,6 +176,6 @@ ProfileScreens（アカウント削除ボタン）
 ## 循環依存の排除
 
 - Frontend サービス層はすべて APIClient を経由してバックエンドと通信する（直接Lambda呼び出しなし）
-- Lambda間の直接呼び出しは ActionTicketLambda → EffortPointLambda の1箇所のみ（同期・同一リクエスト内）
+- Lambda間の直接呼び出しはなし（ActionTicketLambdaがEffort_Point計算・付与を内包）
 - LearningEngineLambda は完全に非同期バッチ処理であり、他のLambdaから呼び出されない
 - ZustandStore はサービス層から更新され、画面コンポーネントから読み取る（単方向データフロー）

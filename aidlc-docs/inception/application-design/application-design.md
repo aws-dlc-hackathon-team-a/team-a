@@ -21,14 +21,14 @@
 
 本システムは以下の5ドメインで構成する。
 
-| ドメイン           | 責務                                               | 主なLambda / コンポーネント                 |
-| ------------------ | -------------------------------------------------- | ------------------------------------------- |
-| **Account**        | 認証・アカウント管理（登録・ログイン・削除）       | AccountLambda、CognitoUserPool              |
-| **User**           | プロフィール・Goal管理、AIサジェスト               | UserLambda、UserDB                          |
-| **ActionTicket**   | チケット生成・完了申告・自動破棄                   | ActionTicketLambda、ActionLogDB             |
-| **Recommendation** | Trigger発火・Recommendation生成・Pivot・ActionStep | RecommendationLambda、BedrockClient         |
-| **EffortPoint**    | ポイント付与・集計・マイルストーン判定             | EffortPointLambda、ActionLogDB              |
-| **LearningEngine** | 週次バッチ・行動モデル構築・Future_Self_Model更新  | LearningEngineLambda、BedrockClient、UserDB |
+| ドメイン           | 責務                                                                           | 主なLambda / コンポーネント                 |
+| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------- |
+| **Account**        | 認証・アカウント管理（登録・ログイン・削除）                                   | AccountLambda、CognitoUserPool              |
+| **User**           | プロフィール・Goal管理、AIサジェスト                                           | UserLambda、UserDB                          |
+| **ActionTicket**   | チケット生成・完了申告・自動破棄                                               | ActionTicketLambda、ActionLogDB             |
+| **Recommendation** | Trigger発火・Recommendation生成・Pivot・ActionStep                             | RecommendationLambda、BedrockClient         |
+| **EffortPoint**    | ポイント付与・集計・マイルストーン判定（Done申告時はActionTicketLambdaが処理） | DailyAggregationLambda、ActionLogDB         |
+| **LearningEngine** | 週次バッチ・行動モデル構築・Future_Self_Model更新                              | LearningEngineLambda、BedrockClient、UserDB |
 
 ---
 
@@ -115,15 +115,15 @@
 
 ### Backend（AWS Lambda）
 
-| コンポーネント       | 役割                              | 参照               |
-| -------------------- | --------------------------------- | ------------------ |
-| AccountLambda        | アカウント削除                    | components.md #2.1 |
-| UserLambda           | Profile・Goal CRUD + AIサジェスト | components.md #2.2 |
-| ActionTicketLambda   | Ticket管理・自動破棄              | components.md #2.3 |
-| RecommendationLambda | Recommendation・Pivot生成         | components.md #2.4 |
-| EffortPointLambda    | Effort_Point計算・集計            | components.md #2.5 |
-| LearningEngineLambda | 週次バッチ・行動モデル構築        | components.md #2.6 |
-| BackendErrorHandler  | 共通エラーハンドリング            | components.md #2.7 |
+| コンポーネント         | 役割                                   | 参照               |
+| ---------------------- | -------------------------------------- | ------------------ |
+| AccountLambda          | アカウント削除                         | components.md #2.1 |
+| UserLambda             | Profile・Goal CRUD + AIサジェスト      | components.md #2.2 |
+| ActionTicketLambda     | Ticket管理・Effort_Point付与・自動破棄 | components.md #2.3 |
+| RecommendationLambda   | Recommendation・Pivot生成              | components.md #2.4 |
+| DailyAggregationLambda | 日次集計・累計Effort_Point取得         | components.md #2.5 |
+| LearningEngineLambda   | 週次バッチ・行動モデル構築             | components.md #2.6 |
+| BackendErrorHandler    | 共通エラーハンドリング                 | components.md #2.7 |
 
 ### データストア・外部サービス
 
@@ -176,22 +176,21 @@ UserLambda ───────────────────────
                                             → Bedrock（AIサジェスト・Pivot_Goal生成）
 
 ActionTicketLambda ─────────────────────────→ UserDB
-                   │                        → ActionLogDB
-                   └──[内部呼び出し]──→ EffortPointLambda → ActionLogDB
+                                            → ActionLogDB（ActionLogEntry・EffortPointRecord書き込み）
 
 RecommendationLambda ───────────────────────→ UserDB
                                             → ActionLogDB
                                             → Bedrock（Recommendation生成）
 
-EffortPointLambda ──────────────────────────→ ActionLogDB
+DailyAggregationLambda ─────────────────────→ ActionLogDB（DailySummary集計・取得）
 
 LearningEngineLambda ───────────────────────→ UserDB
                                             → ActionLogDB
                                             → Bedrock（行動モデル構築）
 
 EventBridgeScheduler ──[週次]──────────────→ LearningEngineLambda
-                     ──[日次]──────────────→ ActionTicketLambda
-                                           → EffortPointLambda
+                     ──[日次]──────────────→ ActionTicketLambda（自動破棄）
+                                           → DailyAggregationLambda（日次集計）
 ```
 
 ---
