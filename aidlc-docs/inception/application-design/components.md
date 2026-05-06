@@ -2,37 +2,39 @@
 
 ## 目次
 
-- [レイヤー構成](#レイヤー構成)
-- [1. Mobile Frontend コンポーネント](#1-mobile-frontend-コンポーネント)
-  - [1.1 NavigationComponent](#11-navigationcomponent)
-  - [1.2 AuthScreens](#12-authscreens)
-  - [1.3 OnboardingScreens](#13-onboardingscreens)
-  - [1.4 HomeScreen](#14-homescreen)
-  - [1.5 RecommendationScreens](#15-recommendationscreens)
-  - [1.6 ActionTicketScreens](#16-actionticketscreens)
-  - [1.7 ProfileScreens](#17-profilescreens)
-  - [1.8 StatsScreens](#18-statsscreens)
-  - [1.9 ZustandStore](#19-zustandstore)
-  - [1.10 APIClient](#110-apiclient)
-  - [1.11 AuthService（Frontend）](#111-authservicefrontend)
-  - [1.12 FrontendErrorHandler](#112-frontenderr orhandler)
-- [2. Backend Lambda コンポーネント](#2-backend-lambda-コンポーネント)
-  - [2.1 AccountLambda](#21-accountlambda)
-  - [2.2 UserLambda](#22-userlambda)
-  - [2.3 ActionTicketLambda](#23-actionticketlambda)
-  - [2.4 RecommendationLambda](#24-recommendationlambda)
-  - [2.5 DailyAggregationLambda](#25-dailyaggregationlambda)
-  - [2.6 LearningEngineLambda](#26-learningenginelambda)
-  - [2.7 BackendErrorHandler](#27-backenderrorhandler)
-- [3. データストアコンポーネント](#3-データストアコンポーネント)
-  - [3.1 UserDB](#31-userdb)
-  - [3.2 ActionLogDB](#32-actionlogdb)
-  - [3.3 SimilarUserDB](#33-similaruserdb)
-- [4. 外部サービスコンポーネント](#4-外部サービスコンポーネント)
-  - [4.1 CognitoUserPool](#41-cognitouserpool)
-  - [4.2 BedrockClient](#42-bedrockclient)
-  - [4.3 EventBridgeScheduler](#43-eventbridgescheduler)
-- [コンポーネント一覧サマリー](#コンポーネント一覧サマリー)
+- [コンポーネント定義 — だが、それでいい（DagaSoreDeIi_App）](#コンポーネント定義--だがそれでいいdagasoredeii_app)
+  - [目次](#目次)
+  - [概要](#概要)
+  - [コンポーネント一覧サマリー](#コンポーネント一覧サマリー)
+  - [1. Mobile Frontend コンポーネント](#1-mobile-frontend-コンポーネント)
+    - [1.1 NavigationComponent](#11-navigationcomponent)
+    - [1.2 AuthScreens](#12-authscreens)
+    - [1.3 OnboardingScreens](#13-onboardingscreens)
+    - [1.4 HomeScreen](#14-homescreen)
+    - [1.5 RecommendationScreens](#15-recommendationscreens)
+    - [1.6 ActionTicketScreens](#16-actionticketscreens)
+    - [1.7 ProfileScreens](#17-profilescreens)
+    - [1.8 StatsScreens](#18-statsscreens)
+    - [1.9 Zustand Stores](#19-zustand-stores)
+    - [1.10 APIClient](#110-apiclient)
+    - [1.11 AuthService（Frontend）](#111-authservicefrontend)
+    - [1.12 FrontendErrorHandler](#112-frontenderrorhandler)
+  - [2. Backend Lambda コンポーネント](#2-backend-lambda-コンポーネント)
+    - [2.1 AccountLambda](#21-accountlambda)
+    - [2.2 UserLambda](#22-userlambda)
+    - [2.3 ActionTicketLambda](#23-actionticketlambda)
+    - [2.4 RecommendationLambda](#24-recommendationlambda)
+    - [2.5 DailyAggregationLambda](#25-dailyaggregationlambda)
+    - [2.6 LearningEngineLambda](#26-learningenginelambda)
+    - [2.7 BackendErrorHandler](#27-backenderrorhandler)
+  - [3. データストアコンポーネント](#3-データストアコンポーネント)
+    - [3.1 UserDB（DynamoDB テーブル）](#31-userdbdynamodb-テーブル)
+    - [3.2 ActionLogDB（DynamoDB テーブル）](#32-actionlogdbdynamodb-テーブル)
+    - [3.3 SimilarUserDB（DynamoDB テーブル）](#33-similaruserdbdynamodb-テーブル)
+  - [4. 外部サービスコンポーネント](#4-外部サービスコンポーネント)
+    - [4.1 CognitoUserPool](#41-cognitouserpool)
+    - [4.2 BedrockClient](#42-bedrockclient)
+    - [4.3 EventBridgeScheduler](#43-eventbridgescheduler)
 
 ---
 
@@ -41,33 +43,39 @@
 本ドキュメントはシステムを構成するアーキテクチャコンポーネントの一覧と責務を定義する。
 UIパーツではなく、機能的な責務単位（モジュール・サービス・レイヤー）として定義する。
 
+レイヤー構成図・アーキテクチャ概要は [application-design.md](./application-design.md) を参照。
+
 ---
 
-## レイヤー構成
+## コンポーネント一覧サマリー
 
-```
-┌─────────────────────────────────────────────────────┐
-│              Mobile Frontend (React Native)          │
-│  Screens / Navigation / State / API Client           │
-└──────────────────────┬──────────────────────────────┘
-                       │ HTTPS / REST
-┌──────────────────────▼──────────────────────────────┐
-│              API Gateway (AWS)                       │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────┐
-│              Backend Lambda Functions (AWS)          │
-│  Account / User / ActionTicket / Recommendation      │
-│  DailyAggregation / LearningEngine(Batch)            │
-└──────┬───────────────┬──────────────────────────────┘
-       │               │
-┌──────▼──────┐  ┌─────▼──────────────────────────────┐
-│  DynamoDB   │  │  Amazon Bedrock                     │
-│  UserDB     │  │  (Recommendation / Persona_Message) │
-│  ActionLogDB│  └────────────────────────────────────┘
-│  SimilarDB  │
-└─────────────┘
-```
+| #   | コンポーネント          | レイヤー     | 種別                                       |
+| --- | ----------------------- | ------------ | ------------------------------------------ |
+| 1   | NavigationComponent     | Frontend     | React Navigation                           |
+| 2   | AuthScreens             | Frontend     | 画面群                                     |
+| 3   | OnboardingScreens       | Frontend     | 画面群                                     |
+| 4   | HomeScreen              | Frontend     | 画面                                       |
+| 5   | RecommendationScreens   | Frontend     | 画面群                                     |
+| 6   | ActionTicketScreens     | Frontend     | 画面群                                     |
+| 7   | ProfileScreens          | Frontend     | 画面群                                     |
+| 8   | StatsScreens            | Frontend     | 画面群                                     |
+| 9   | Zustand Stores          | Frontend     | 状態管理（3ストア、残りはReact Query検討） |
+| 10  | APIClient               | Frontend     | HTTPクライアント                           |
+| 11  | AuthService（Frontend） | Frontend     | Amplifyラッパー                            |
+| 12  | FrontendErrorHandler    | Frontend     | 共通エラー処理                             |
+| 13  | AccountLambda           | Backend      | Lambda                                     |
+| 14  | UserLambda              | Backend      | Lambda                                     |
+| 15  | ActionTicketLambda      | Backend      | Lambda                                     |
+| 16  | RecommendationLambda    | Backend      | Lambda                                     |
+| 17  | DailyAggregationLambda  | Backend      | Lambda                                     |
+| 18  | LearningEngineLambda    | Backend      | Lambda（週次バッチ）                       |
+| 19  | BackendErrorHandler     | Backend      | 共通ミドルウェア                           |
+| 20  | UserDB                  | データストア | DynamoDB                                   |
+| 21  | ActionLogDB             | データストア | DynamoDB                                   |
+| 22  | SimilarUserDB           | データストア | DynamoDB                                   |
+| 23  | CognitoUserPool         | 外部サービス | AWS Cognito                                |
+| 24  | BedrockClient           | 外部サービス | Amazon Bedrock                             |
+| 25  | EventBridgeScheduler    | 外部サービス | EventBridge                                |
 
 ---
 
@@ -75,11 +83,11 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 1.1 NavigationComponent
 
-| 項目                 | 内容                                                                                                                                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**             | React Navigation 設定モジュール                                                                                                                                                                     |
-| **責務**             | アプリ全体の画面遷移を管理する。Bottom Tab Navigator（ホーム・チケット・プロフィール・統計）+ Stack Navigator（認証フロー・オンボーディング・Recommendationフロー）の構成を定義する                 |
-| **主要画面グループ** | AuthStack（ログイン・登録・パスワードリセット）、OnboardingStack（プロフィール登録）、MainTab（ホーム・チケット一覧・プロフィール・統計）、RecommendationStack（Recommendation・Pivot・ActionStep） |
+| 項目                 | 内容                                                                                                                                                                                                                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**             | React Navigation 設定モジュール                                                                                                                                                                                                                                                                                               |
+| **責務**             | アプリ全体の画面遷移を管理する。Bottom Tab Navigator（ホーム・チケット・プロフィール・統計）+ Stack Navigator（認証フロー・オンボーディング・Recommendationフロー）の構成を定義する                                                                                                                                           |
+| **主要画面グループ** | AuthStack（メールアドレス/パスワードによる新規アカウント登録・ログイン・パスワードリセット・メール確認）、OnboardingStack（初回プロフィール登録）、MainTab（ホーム・チケット一覧・プロフィール・統計）、RecommendationStack（Trigger発火後に全画面表示されるRecommendation提案・Pivot提案・心理状態入力の一連のフロー画面群） |
 
 ### 1.2 AuthScreens
 
@@ -107,11 +115,11 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 1.5 RecommendationScreens
 
-| 項目     | 内容                                                                                       |
-| -------- | ------------------------------------------------------------------------------------------ |
-| **種別** | React Native 画面コンポーネント群                                                          |
-| **責務** | Recommendation表示・4択応答ボタン・Pivot提案・ActionStep表示・心理状態入力の各画面UIを担う |
-| **依存** | RecommendationService、ActionTicketService、ZustandStore                                   |
+| 項目     | 内容                                                                                                                                                                              |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別** | React Native 画面コンポーネント群                                                                                                                                                 |
+| **責務** | Trigger発火時（自動・手動）にホーム画面上に全画面表示されるRecommendationフロー画面群。心理状態入力・Recommendation提案表示・4択応答・Pivot提案・チケット起票確認の各画面UIを担う |
+| **依存** | RecommendationService、ActionTicketService、ZustandStore                                                                                                                          |
 
 ### 1.6 ActionTicketScreens
 
@@ -123,11 +131,11 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 1.7 ProfileScreens
 
-| 項目     | 内容                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **種別** | React Native 画面コンポーネント群                                                                                              |
-| **責務** | プロフィール表示・編集・Goal管理（追加・削除・優先度変更・Primary_Goal設定）・更新履歴閲覧・学習データリセットの各画面UIを担う |
-| **依存** | ProfileService、GoalService、ZustandStore                                                                                      |
+| 項目     | 内容                                                                                                             |
+| -------- | ---------------------------------------------------------------------------------------------------------------- |
+| **種別** | React Native 画面コンポーネント群                                                                                |
+| **責務** | プロフィール表示・編集・Goal管理（追加・削除・優先度変更・Primary_Goal設定）・学習データリセットの各画面UIを担う |
+| **依存** | ProfileService、GoalService、ZustandStore                                                                        |
 
 ### 1.8 StatsScreens
 
@@ -137,13 +145,20 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **責務** | Effort_Point累計・週間/月間グラフ・得意な行動パターン分析の表示を担う |
 | **依存** | EffortPointService、ZustandStore                                      |
 
-### 1.9 ZustandStore
+### 1.9 Zustand Stores
 
-| 項目         | 内容                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| **種別**     | Zustand グローバル状態管理モジュール                                                                                           |
-| **責務**     | アプリ全体の共有状態（認証状態・現在のUser/Profile/Goal・Open Action_Tickets・Effort_Point累計・Recommendation状態）を管理する |
-| **スライス** | authSlice、profileSlice、goalSlice、ticketSlice、recommendationSlice、effortPointSlice                                         |
+アプリ全体の共有状態を管理するZustandストア群。ドメインごとに独立したストアとして定義する。
+
+**v1スコープでのストア方針**:
+
+- 以下の3ストアをZustandで管理する（グローバル状態が必要な理由あり）
+- `profileStore`・`goalStore`・`effortPointStore` はサーバーデータのためReact Queryキャッシュで代替できる可能性が高く、Construction PhaseのFunctional Designで詳細を決定する
+
+| ストア名                | 管理する状態                                                                | Zustand採用理由                                                                 |
+| ----------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **authStore**           | 認証状態・CognitoUserオブジェクト・isAuthenticated                          | ほぼ全画面が参照し、NavigationComponentのルーティング判定にも使用するため必須   |
+| **ticketStore**         | Open状態のAction_Ticket一覧                                                 | HomeScreenとActionTicketScreensが同じデータを共有し、Done申告後の即時反映が必要 |
+| **recommendationStore** | 現在のRecommendation・recommendationState（idle/loading/active/pivot/done） | RecommendationフローがStack Navigatorをまたいで状態を保持する必要があるため     |
 
 ### 1.10 APIClient
 
@@ -163,11 +178,11 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ### 1.12 FrontendErrorHandler
 
-| 項目                               | 内容                                                                                                                             |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**                           | 共通エラーハンドリングモジュール                                                                                                 |
-| **責務**                           | APIエラー・ネットワークエラー・Bedrockタイムアウト時のフォールバックメッセージ表示・ユーザー向けエラーメッセージの統一管理を担う |
-| **フォールバックメッセージストア** | Bedrockタイムアウト時・API障害時の事前定義メッセージを保持する                                                                   |
+| 項目                             | 内容                                                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**                         | 共通エラーハンドリングモジュール                                                                                                 |
+| **責務**                         | APIエラー・ネットワークエラー・Bedrockタイムアウト時のフォールバックメッセージ表示・ユーザー向けエラーメッセージの統一管理を担う |
+| **フォールバックメッセージ定数** | Bedrockタイムアウト時・API障害時に使用する事前定義メッセージをconst値として保持する（状態管理ではなく静的な定数ファイル）        |
 
 ---
 
@@ -286,35 +301,3 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別** | Amazon EventBridge Scheduler                                                                                                                                    |
 | **責務** | 定期実行トリガーを管理する。LearningEngineLambda（毎週月曜0時）・ActionTicketLambda自動破棄（ユーザー設定の集計時刻）・DailyAggregationLambda日次集計を発火する |
-
----
-
-## コンポーネント一覧サマリー
-
-| #   | コンポーネント          | レイヤー     | 種別                 |
-| --- | ----------------------- | ------------ | -------------------- |
-| 1   | NavigationComponent     | Frontend     | React Navigation     |
-| 2   | AuthScreens             | Frontend     | 画面群               |
-| 3   | OnboardingScreens       | Frontend     | 画面群               |
-| 4   | HomeScreen              | Frontend     | 画面                 |
-| 5   | RecommendationScreens   | Frontend     | 画面群               |
-| 6   | ActionTicketScreens     | Frontend     | 画面群               |
-| 7   | ProfileScreens          | Frontend     | 画面群               |
-| 8   | StatsScreens            | Frontend     | 画面群               |
-| 9   | ZustandStore            | Frontend     | 状態管理             |
-| 10  | APIClient               | Frontend     | HTTPクライアント     |
-| 11  | AuthService（Frontend） | Frontend     | Amplifyラッパー      |
-| 12  | FrontendErrorHandler    | Frontend     | 共通エラー処理       |
-| 13  | AccountLambda           | Backend      | Lambda               |
-| 14  | UserLambda              | Backend      | Lambda               |
-| 15  | ActionTicketLambda      | Backend      | Lambda               |
-| 16  | RecommendationLambda    | Backend      | Lambda               |
-| 17  | DailyAggregationLambda  | Backend      | Lambda               |
-| 18  | LearningEngineLambda    | Backend      | Lambda（週次バッチ） |
-| 19  | BackendErrorHandler     | Backend      | 共通ミドルウェア     |
-| 20  | UserDB                  | データストア | DynamoDB             |
-| 21  | ActionLogDB             | データストア | DynamoDB             |
-| 22  | SimilarUserDB           | データストア | DynamoDB             |
-| 23  | CognitoUserPool         | 外部サービス | AWS Cognito          |
-| 24  | BedrockClient           | 外部サービス | Amazon Bedrock       |
-| 25  | EventBridgeScheduler    | 外部サービス | EventBridge          |

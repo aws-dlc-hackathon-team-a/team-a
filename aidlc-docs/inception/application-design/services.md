@@ -49,9 +49,9 @@ function useDeleteAccount(): UseMutationResult<void, void>;
 
 **オーケストレーション**:
 
-- サインイン成功時 → ZustandStore.authSlice.setUser() → NavigationComponent でMainTabへ遷移
-- サインアウト時 → ZustandStore.clearAuth() → AuthStackへ遷移
-- アカウント削除時 → AccountLambda呼び出し → ZustandStore.clearAuth() → ログイン画面へ遷移
+- サインイン成功時 → authStore.setUser() → NavigationComponent でMainTabへ遷移
+- サインアウト時 → authStore.clearAuth() → AuthStackへ遷移
+- アカウント削除時 → AccountLambda呼び出し → authStore.clearAuth() → ログイン画面へ遷移
 
 ---
 
@@ -68,7 +68,7 @@ function useGetProfileSuggestion(field: ProfileField, input: string): UseQueryRe
 
 **オーケストレーション**:
 
-- プロフィール更新成功時 → ZustandStore.profileSlice.setProfile() → キャッシュ無効化
+- プロフィール更新成功時 → profileStore.setProfile() → キャッシュ無効化
 - オンボーディング完了時 → isOnboardingComplete = true → MainTabへ遷移
 
 ---
@@ -89,8 +89,8 @@ function useGenerateInitialPivotGoals(userId: string): UseQueryResult<Goal[]>;
 
 **オーケストレーション**:
 
-- Goal操作成功時 → ZustandStore.goalSlice.setGoals() → キャッシュ無効化
-- Primary_Goal変更時 → ZustandStore.goalSlice.setPrimaryGoal()
+- Goal操作成功時 → goalStore.setGoals() → キャッシュ無効化
+- Primary_Goal変更時 → goalStore.setPrimaryGoal()
 
 ---
 
@@ -107,7 +107,7 @@ function useManualTrigger(): UseMutationResult<Recommendation, ManualTriggerInpu
 
 - アプリ起動時 → Open Ticketが0件かチェック → 0件なら自動Trigger発火
 - 手動Trigger → 心理状態入力UI表示 → RecommendationLambda呼び出し → RecommendationScreenへ遷移
-- Recommendation取得成功時 → ZustandStore.recommendationSlice.setRecommendation()
+- Recommendation取得成功時 → recommendationStore.setRecommendation()
 
 ---
 
@@ -145,7 +145,7 @@ function useGetExpiredHistory(userId: string): UseQueryResult<ExpiredTicket[]>;
 
 **オーケストレーション**:
 
-- Done申告成功時 → ZustandStore.ticketSlice.markTicketDone() → Effort_Point表示 → キャッシュ無効化
+- Done申告成功時 → ticketStore.markTicketDone() → Effort_Point表示 → キャッシュ無効化
 - Done申告時 → Persona_Messageトーンの肯定メッセージ表示（FrontendErrorHandlerのメッセージストアから取得）
 
 ---
@@ -163,7 +163,7 @@ function useGetMonthlySummary(userId: string, month: string): UseQueryResult<Mon
 
 **オーケストレーション**:
 
-- ポイント取得時 → ZustandStore.effortPointSlice更新
+- ポイント取得時 → effortPointStore更新
 - マイルストーン達成時 → 特別メッセージ・バッジ表示
 
 ---
@@ -190,7 +190,7 @@ Done申告
   → useActionTicketService.completeTicket()
     → ActionTicketLambda: Action_Log記録（リアルタイム）+ Effort_Point計算・付与・マイルストーン判定
     → レスポンス: { ticket, pointsAwarded, totalPoints, milestoneReached }
-  → ZustandStore更新
+  → Stores更新
   → Persona_Message表示（肯定メッセージ + ポイント）
   → マイルストーン達成時: 特別メッセージ・バッジ表示
 ```

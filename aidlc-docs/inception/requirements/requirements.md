@@ -162,7 +162,7 @@
 
 | ID      | 要件                                                                                                                                                                                                                                                                                                             |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FR-06-1 | 「やる」応答時にPrimary_Goal達成をサポートする詳細なアクションステップを表示する                                                                                                                                                                                                                                 |
+| FR-06-1 | 「やる」応答時にAction_TicketをOpen（未完了）ステータスで生成する。Action_Ticketの説明文（content）にはPrimary_Goal達成をサポートする詳細なアクションステップ（具体的な行動手順）を含める                                                                                                                        |
 | FR-06-2 | 「いいえ（別の方法で）」応答時に同じPrimary_Goal内で別のアクションをPersona_Messageで提案する                                                                                                                                                                                                                    |
 | FR-06-3 | Pivot提案を常にFuture_Self_ModelのPersona_Messageで行う                                                                                                                                                                                                                                                          |
 | FR-06-4 | 初回Recommendationを無視して別の行動を開始した場合、その行動をAction_Logに記録しPivot_Goalとして認識する                                                                                                                                                                                                         |
@@ -183,7 +183,6 @@
 | FR-07-1 | いずれかのGoalに関連する行動完了時にAction_LogをProfileに反映し行動傾向スコアを自動更新する                                              |
 | FR-07-2 | Pivot_Goalの行動を連続3日以上完了、またはPivot_Goalへの応答率が80%超の場合、Primary_Goal候補として昇格提案メッセージをアプリ内に表示する |
 | FR-07-3 | 過去30日間のAction_Logに基づいてProfileの「得意な行動パターン」を自動分析し表示する                                                      |
-| FR-07-4 | Profileの更新履歴をユーザーが閲覧できる機能を提供する                                                                                    |
 
 ---
 
@@ -347,23 +346,23 @@
 
 ## 用語集
 
-| 用語                 | 定義                                                                         |
-| -------------------- | ---------------------------------------------------------------------------- |
-| DagaSoreDeIi_App     | 本アプリケーション「だが、それでいい」全体を指すシステム名                   |
-| User                 | アプリを利用する個人ユーザー                                                 |
-| Profile              | ユーザーの属性・興味・行動傾向・心理状態などを記録したデータ                 |
-| Goal                 | ユーザーが設定する目標。複数設定可能                                         |
-| Primary_Goal         | ユーザーが最優先として設定したGoal                                           |
-| Pivot_Goal           | Primary_Goalの達成が難しい日に提案される別の価値ある選択肢                   |
-| Flexible_Achievement | 当初の目標でなくても行動できたことを肯定的に評価する概念                     |
-| State_Detection      | ユーザーの現在状態を検知する機能                                             |
-| Trigger              | State_Detectionによって検知された行動提案を発火させる条件                    |
-| Recommendation       | TriggerをもとにAIが生成する行動提案                                          |
-| Pivot                | Recommendationを拒否/無視した際に別のGoalへ提案を切り替える機能              |
-| Effort_Point         | 行動完了時に付与されるポイント                                               |
-| Persona_Message      | Future_Self_Modelが語りかけるスタイルのメッセージ                            |
-| Learning_Engine      | 行動結果を蓄積しRecommendationを最適化するAIコンポーネント（Amazon Bedrock） |
-| Action_Log           | ユーザーが実際に行った行動の記録                                             |
-| Similar_User_Data    | 類似プロフィールを持つ他ユーザーの匿名化された行動データ（v2以降）           |
-| Future_Self_Model    | Similar_User_Dataを基に構築した「未来の自分」モデル（v1: モックデータ）      |
-| Action_Ticket        | Recommendationへの応答時に生成される行動タスク（Open/Done）                  |
+| 用語                 | 定義                                                                                                                          |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| DagaSoreDeIi_App     | 本アプリケーション「だが、それでいい」全体を指すシステム名                                                                    |
+| User                 | アプリを利用する個人ユーザー                                                                                                  |
+| Profile              | ユーザーの属性・興味・行動傾向・心理状態などを記録したデータ                                                                  |
+| Goal                 | ユーザーが設定する目標。複数設定可能                                                                                          |
+| Primary_Goal         | ユーザーが最優先として設定したGoal                                                                                            |
+| Pivot_Goal           | Primary_Goalの達成が難しい日に提案される別の価値ある選択肢                                                                    |
+| Flexible_Achievement | 当初の目標でなくても行動できたことを肯定的に評価する概念                                                                      |
+| State_Detection      | ユーザーの現在状態を検知する機能                                                                                              |
+| Trigger              | State_Detectionによって検知された行動提案を発火させる条件                                                                     |
+| Recommendation       | TriggerをもとにAIが生成する行動提案                                                                                           |
+| Pivot                | Recommendationを拒否/無視した際に別のGoalへ提案を切り替える機能                                                               |
+| Effort_Point         | 行動完了時に付与されるポイント                                                                                                |
+| Persona_Message      | Future_Self_Modelが語りかけるスタイルのメッセージ                                                                             |
+| Learning_Engine      | 行動結果を蓄積しRecommendationを最適化するAIコンポーネント（Amazon Bedrock）                                                  |
+| Action_Log           | ユーザーが実際に行った行動の記録                                                                                              |
+| Similar_User_Data    | 類似プロフィールを持つ他ユーザーの匿名化された行動データ（v2以降）                                                            |
+| Future_Self_Model    | Similar_User_Dataを基に構築した「未来の自分」モデル（v1: モックデータ）                                                       |
+| Action_Ticket        | Recommendationへの応答時に生成される行動タスク（Open/Done）。content フィールドに具体的なアクションステップ（行動手順）を含む |

@@ -4,7 +4,7 @@
 
 - [1. AuthService（Frontend）](#1-authservicefrontend)
 - [2. APIClient](#2-apiclient)
-- [3. ZustandStore](#3-zustandstore)
+- [3. Zustand Stores](#3-zustand-stores)
 - [4. FrontendErrorHandler](#4-frontenderr orhandler)
 - [5. AccountLambda](#5-accountlambda)
 - [6. UserLambda](#6-userlambda)
@@ -60,49 +60,49 @@ interface APIClient {
 
 ---
 
-## 3. ZustandStore
+## 3. Zustand Stores
 
 ```typescript
-// 認証スライス
-interface AuthSlice {
+// 認証ストア
+interface AuthStore {
   user: CognitoUser | null;
   isAuthenticated: boolean;
   setUser(user: CognitoUser | null): void;
   clearAuth(): void;
 }
 
-// プロフィールスライス
-interface ProfileSlice {
+// プロフィールストア
+interface ProfileStore {
   profile: Profile | null;
   isOnboardingComplete: boolean;
   setProfile(profile: Profile): void;
 }
 
-// Goalスライス
-interface GoalSlice {
+// Goalストア
+interface GoalStore {
   goals: Goal[];
   primaryGoal: Goal | null;
   setGoals(goals: Goal[]): void;
   setPrimaryGoal(goalId: string): void;
 }
 
-// Action_Ticketスライス
-interface TicketSlice {
+// Action_Ticketストア
+interface TicketStore {
   openTickets: ActionTicket[];
   setOpenTickets(tickets: ActionTicket[]): void;
   markTicketDone(ticketId: string): void;
 }
 
-// Recommendationスライス
-interface RecommendationSlice {
+// Recommendationストア
+interface RecommendationStore {
   currentRecommendation: Recommendation | null;
   recommendationState: "idle" | "loading" | "active" | "pivot" | "done";
   setRecommendation(rec: Recommendation): void;
   setRecommendationState(state: RecommendationState): void;
 }
 
-// Effort_Pointスライス
-interface EffortPointSlice {
+// Effort_Pointストア
+interface EffortPointStore {
   totalPoints: number;
   todayPoints: number;
   setTotalPoints(points: number): void;
