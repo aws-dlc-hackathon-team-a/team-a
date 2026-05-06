@@ -77,7 +77,7 @@ export const useAppStore = create<AppState>((set) => ({
   effortPoints: [],
   totalEffortPoints: 0,
   
-  login: (email: string, password: string) => {
+  login: (email: string, _password: string) => {
     set({
       user: { id: '1', email, nickname: 'テストユーザー' },
       isAuthenticated: true,
