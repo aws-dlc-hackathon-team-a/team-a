@@ -1,5 +1,19 @@
 # サービス層設計 — だが、それでいい（DagaSoreDeIi_App）
 
+## 目次
+
+- [サービス層アーキテクチャ](#サービス層アーキテクチャ)
+- [1. useAuthService](#1-useauthservice)
+- [2. useProfileService](#2-useprofileservice)
+- [3. useGoalService](#3-usegoalservice)
+- [4. useTriggerService](#4-usetriggerservice)
+- [5. useRecommendationService](#5-userecommendationservice)
+- [6. useActionTicketService](#6-useactionticketservice)
+- [7. useEffortPointService](#7-useeffortpointservice)
+- [サービス間オーケストレーションフロー](#サービス間オーケストレーションフロー)
+
+---
+
 ## 概要
 
 フロントエンドのサービス層はReact QueryのカスタムフックとしてAPIClientをラップし、

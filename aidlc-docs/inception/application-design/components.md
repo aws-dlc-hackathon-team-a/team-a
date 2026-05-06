@@ -1,5 +1,41 @@
 # コンポーネント定義 — だが、それでいい（DagaSoreDeIi_App）
 
+## 目次
+
+- [レイヤー構成](#レイヤー構成)
+- [1. Mobile Frontend コンポーネント](#1-mobile-frontend-コンポーネント)
+  - [1.1 NavigationComponent](#11-navigationcomponent)
+  - [1.2 AuthScreens](#12-authscreens)
+  - [1.3 OnboardingScreens](#13-onboardingscreens)
+  - [1.4 HomeScreen](#14-homescreen)
+  - [1.5 RecommendationScreens](#15-recommendationscreens)
+  - [1.6 ActionTicketScreens](#16-actionticketscreens)
+  - [1.7 ProfileScreens](#17-profilescreens)
+  - [1.8 StatsScreens](#18-statsscreens)
+  - [1.9 ZustandStore](#19-zustandstore)
+  - [1.10 APIClient](#110-apiclient)
+  - [1.11 AuthService（Frontend）](#111-authservicefrontend)
+  - [1.12 FrontendErrorHandler](#112-frontenderr orhandler)
+- [2. Backend Lambda コンポーネント](#2-backend-lambda-コンポーネント)
+  - [2.1 AccountLambda](#21-accountlambda)
+  - [2.2 UserLambda](#22-userlambda)
+  - [2.3 ActionTicketLambda](#23-actionticketlambda)
+  - [2.4 RecommendationLambda](#24-recommendationlambda)
+  - [2.5 DailyAggregationLambda](#25-dailyaggregationlambda)
+  - [2.6 LearningEngineLambda](#26-learningenginelambda)
+  - [2.7 BackendErrorHandler](#27-backenderrorhandler)
+- [3. データストアコンポーネント](#3-データストアコンポーネント)
+  - [3.1 UserDB](#31-userdb)
+  - [3.2 ActionLogDB](#32-actionlogdb)
+  - [3.3 SimilarUserDB](#33-similaruserdb)
+- [4. 外部サービスコンポーネント](#4-外部サービスコンポーネント)
+  - [4.1 CognitoUserPool](#41-cognitouserpool)
+  - [4.2 BedrockClient](#42-bedrockclient)
+  - [4.3 EventBridgeScheduler](#43-eventbridgescheduler)
+- [コンポーネント一覧サマリー](#コンポーネント一覧サマリー)
+
+---
+
 ## 概要
 
 本ドキュメントはシステムを構成するアーキテクチャコンポーネントの一覧と責務を定義する。

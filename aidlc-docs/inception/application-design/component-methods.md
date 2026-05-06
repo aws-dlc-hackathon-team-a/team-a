@@ -1,5 +1,22 @@
 # コンポーネントメソッド定義 — だが、それでいい（DagaSoreDeIi_App）
 
+## 目次
+
+- [1. AuthService（Frontend）](#1-authservicefrontend)
+- [2. APIClient](#2-apiclient)
+- [3. ZustandStore](#3-zustandstore)
+- [4. FrontendErrorHandler](#4-frontenderr orhandler)
+- [5. AccountLambda](#5-accountlambda)
+- [6. UserLambda](#6-userlambda)
+- [7. ActionTicketLambda](#7-actionticketlambda)
+- [8. RecommendationLambda](#8-recommendationlambda)
+- [9. DailyAggregationLambda](#9-dailyaggregationlambda)
+- [10. LearningEngineLambda](#10-learningenginelambda)
+- [11. BackendErrorHandler](#11-backenderrorhandler)
+- [型定義（主要）](#型定義主要)
+
+---
+
 ## 概要
 
 各コンポーネントの主要メソッドシグネチャを定義する。
