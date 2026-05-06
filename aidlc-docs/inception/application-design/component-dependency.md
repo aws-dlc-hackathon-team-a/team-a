@@ -57,128 +57,199 @@
 
 ### 1. 初期起動フロー（新規ユーザー）
 
-```
-AuthScreens（新規登録）
-  → useAuthService.signUp()
-    → AuthService(FE) → CognitoUserPool（アカウント作成）
-    ← SignUpResult
-  → AuthScreens（メール確認コード入力）
-  → useAuthService.confirmSignUp()
-    → AuthService(FE) → CognitoUserPool（メール確認）
-  → useAuthService.signIn()
-    → AuthService(FE) → CognitoUserPool（サインイン）
-    → ZustandStore.authSlice.setUser()
-  → OnboardingScreens（プロフィール登録）
-    → useProfileService.getProfileSuggestion()
-      → APIClient GET /users/{userId}/profiles/suggestions
-        → API Gateway → UserLambda → BedrockClient（AIサジェスト）
-    → useProfileService.updateProfile()
-      → APIClient PUT /users/{userId}/profiles
-        → API Gateway → UserLambda → UserDB（Profile書き込み）
-    → useGoalService.generateInitialPivotGoals()
-      → APIClient POST /users/{userId}/goals/generate
-        → API Gateway → UserLambda → BedrockClient（Pivot_Goal自動生成）
-        → UserLambda → UserDB（Goal書き込み）
-  → NavigationComponent → MainTab（ホーム）
+```mermaid
+sequenceDiagram
+    actor User
+    participant AuthScreens
+    participant AuthService
+    participant Cognito as CognitoUserPool
+    participant OnboardingScreens
+    participant UserLambda
+    participant Bedrock as BedrockClient
+    participant UserDB
+
+    User->>AuthScreens: 新規登録
+    AuthScreens->>AuthService: signUp()
+    AuthService->>Cognito: アカウント作成
+    Cognito-->>AuthScreens: 確認メール送信
+    User->>AuthScreens: 確認コード入力
+    AuthScreens->>AuthService: confirmSignUp()
+    AuthService->>Cognito: メール確認
+    AuthScreens->>AuthService: signIn()
+    AuthService->>Cognito: サインイン
+    Cognito-->>AuthService: JWTトークン
+    AuthService-->>AuthScreens: 認証完了 → authStore更新
+
+    AuthScreens->>OnboardingScreens: オンボーディングへ遷移
+    OnboardingScreens->>UserLambda: GET /users/{userId}/profiles/suggestions
+    UserLambda->>Bedrock: AIサジェスト生成
+    Bedrock-->>UserLambda: サジェスト候補
+    UserLambda-->>OnboardingScreens: サジェスト候補
+
+    OnboardingScreens->>UserLambda: PUT /users/{userId}/profiles
+    UserLambda->>UserDB: Profile書き込み
+    UserDB-->>UserLambda: OK
+    UserLambda-->>OnboardingScreens: Profile
+
+    OnboardingScreens->>UserLambda: POST /users/{userId}/goals/generate
+    UserLambda->>Bedrock: Pivot_Goal自動生成
+    Bedrock-->>UserLambda: Pivot_Goal候補
+    UserLambda->>UserDB: Goal書き込み
+    UserLambda-->>OnboardingScreens: Goal一覧
+    OnboardingScreens-->>User: MainTabへ遷移
 ```
 
 ### 2. アプリ起動フロー（既存ユーザー）
 
-```
-App起動
-  → useAuthService.getCurrentSession()
-    → AuthService(FE) → CognitoUserPool（セッション確認）
-    → 未認証: AuthScreensへ遷移
-    → 認証済み: ZustandStore.authSlice.setUser()
-  → useProfileService.getProfile()
-    → APIClient GET /users/{userId}/profiles
-      → API Gateway → UserLambda → UserDB（Profile取得）
-    → プロフィール未完了: OnboardingScreensへ遷移
-    → 完了: useActionTicketService.getOpenTickets()
-      → APIClient GET /tickets/{userId}
-        → API Gateway → ActionTicketLambda → ActionLogDB（Open Ticket取得）
-      → Open Ticket 0件: 自動Trigger発火 → Recommendationフローへ
-      → Open Ticket あり: HomeScreenへ遷移
+```mermaid
+sequenceDiagram
+    actor User
+    participant App
+    participant AuthService
+    participant Cognito as CognitoUserPool
+    participant UserLambda
+    participant UserDB
+    participant ActionTicketLambda
+    participant ActionLogDB
+
+    User->>App: アプリ起動
+    App->>AuthService: getCurrentSession()
+    AuthService->>Cognito: セッション確認
+    alt 未認証
+        Cognito-->>App: 未認証
+        App-->>User: AuthScreensへ遷移
+    else 認証済み
+        Cognito-->>AuthService: JWTトークン
+        AuthService-->>App: authStore更新
+        App->>UserLambda: GET /users/{userId}/profiles
+        UserLambda->>UserDB: Profile取得
+        UserDB-->>UserLambda: Profile
+        UserLambda-->>App: Profile
+        alt プロフィール未完了
+            App-->>User: OnboardingScreensへ遷移
+        else 完了
+            App->>ActionTicketLambda: GET /tickets/{userId}
+            ActionTicketLambda->>ActionLogDB: Open Ticket取得
+            ActionLogDB-->>ActionTicketLambda: Ticket一覧
+            ActionTicketLambda-->>App: Ticket一覧
+            alt Open Ticket 0件
+                App-->>User: 自動Trigger → Recommendationフローへ
+            else Open Ticketあり
+                App-->>User: HomeScreenへ遷移
+            end
+        end
+    end
 ```
 
 ### 3. Recommendation生成フロー
 
-```
-HomeScreen
-  → useTriggerService（手動/自動Trigger）
-    → APIClient POST /recommendations/{userId}
-      → API Gateway
-        → RecommendationLambda
-          → UserDB（Profile・Goal・BehaviorModel取得）
-          → ActionLogDB（Action_Log件数確認・直近ログ取得）
-          → BedrockClient（Recommendation生成）
-          ← Recommendation（Persona_Messageトーン）
-      ← Recommendation
-    ← Recommendation
-  → ZustandStore.recommendationSlice
-  → RecommendationScreens（表示）
+```mermaid
+sequenceDiagram
+    actor User
+    participant HomeScreen
+    participant RecommendationLambda
+    participant UserDB
+    participant ActionLogDB
+    participant Bedrock as BedrockClient
+    participant RecommendationScreens
+
+    User->>HomeScreen: Triggerボタンタップ（または自動Trigger）
+    HomeScreen->>RecommendationLambda: POST /recommendations/{userId}
+    RecommendationLambda->>UserDB: Profile・Goal・BehaviorModel取得
+    UserDB-->>RecommendationLambda: ユーザーデータ
+    RecommendationLambda->>ActionLogDB: Action_Log件数確認・直近ログ取得
+    ActionLogDB-->>RecommendationLambda: Action_Log
+    RecommendationLambda->>Bedrock: Recommendation生成
+    Bedrock-->>RecommendationLambda: Recommendation（Persona_Messageトーン）
+    RecommendationLambda-->>HomeScreen: Recommendation
+    HomeScreen->>RecommendationScreens: recommendationStore更新 → 画面遷移
+    RecommendationScreens-->>User: Recommendation表示
 ```
 
 ### 4. Done申告フロー
 
-```
-ActionTicketScreens / HomeScreen
-  → useActionTicketService.completeTicket()
-    → APIClient PUT /tickets/{userId}/{ticketId}/complete
-      → API Gateway
-        → ActionTicketLambda
-          → ActionLogDB（ActionLogEntry書き込み・リアルタイム）
-          → ActionTicketLambda.calculatePoints()（ポイント計算）
-          → ActionLogDB（EffortPointRecord書き込み）
-          → ActionTicketLambda.checkMilestone()（マイルストーン判定）
-          ← CompleteTicketResult { ticket, pointsAwarded, totalPoints, milestoneReached }
-      ← CompleteTicketResult
-    ← CompleteTicketResult
-  → ZustandStore更新（ticketSlice, effortPointSlice）
-  → Persona_Message表示
+```mermaid
+sequenceDiagram
+    actor User
+    participant Screen as ActionTicketScreens/HomeScreen
+    participant ActionTicketLambda
+    participant ActionLogDB
+
+    User->>Screen: Done申告
+    Screen->>ActionTicketLambda: PUT /tickets/{userId}/{ticketId}/complete
+    ActionTicketLambda->>ActionLogDB: ActionLogEntry書き込み（リアルタイム）
+    ActionTicketLambda->>ActionTicketLambda: calculatePoints()
+    ActionTicketLambda->>ActionLogDB: EffortPointRecord書き込み
+    ActionTicketLambda->>ActionTicketLambda: checkMilestone()
+    ActionLogDB-->>ActionTicketLambda: OK
+    ActionTicketLambda-->>Screen: CompleteTicketResult { ticket, pointsAwarded, totalPoints, milestoneReached }
+    Screen->>Screen: ticketStore・effortPointStore更新
+    Screen-->>User: Persona_Message表示（ポイント + 達成メッセージ）
 ```
 
 ### 5. 日次集計・自動破棄フロー
 
-```
-EventBridgeScheduler（ユーザー設定の集計時刻）
-  → DailyAggregationLambda.expireTickets()
-    → ActionLogDB（Open Ticketを破棄ステータスに更新）
-    ← ExpireTicketsResult（破棄件数・Done件数）
-  → DailyAggregationLambda.runDailyAggregation()
-    → ActionLogDB（DailySummary書き込み・集計）
-  ※ 破棄メッセージ（Persona_Messageトーン）は次回アプリ起動時にフロントエンドが表示
+```mermaid
+sequenceDiagram
+    participant EventBridge as EventBridgeScheduler
+    participant DailyAggregationLambda
+    participant ActionLogDB
+
+    EventBridge->>DailyAggregationLambda: 集計時刻トリガー
+    DailyAggregationLambda->>ActionLogDB: Open Ticketを破棄ステータスに更新
+    ActionLogDB-->>DailyAggregationLambda: ExpireTicketsResult（破棄件数・Done件数）
+    DailyAggregationLambda->>ActionLogDB: DailySummary書き込み・集計
+    ActionLogDB-->>DailyAggregationLambda: OK
+    Note over DailyAggregationLambda: 破棄メッセージは次回アプリ起動時にFEが表示
 ```
 
 ### 6. 週次バッチフロー
 
-```
-EventBridgeScheduler（毎週月曜0時）
-  → LearningEngineLambda.runWeeklyBatch()
-    → ActionLogDB（全ユーザーAction_Log取得）
-    → UserDB（Profile・Goal取得）
-    → BedrockClient（行動モデル構築・Future_Self_Model更新）
-    → UserDB（BehaviorModel・FutureSelfModel書き込み）
-    → UserDB（Profile.behaviorTrends更新）
-    → UserDB（Pivot_Goal昇格候補フラグ更新）
+```mermaid
+sequenceDiagram
+    participant EventBridge as EventBridgeScheduler
+    participant LearningEngineLambda
+    participant ActionLogDB
+    participant UserDB
+    participant Bedrock as BedrockClient
+
+    EventBridge->>LearningEngineLambda: 毎週月曜0時トリガー
+    LearningEngineLambda->>ActionLogDB: 全ユーザーAction_Log取得
+    ActionLogDB-->>LearningEngineLambda: Action_Log
+    LearningEngineLambda->>UserDB: Profile・Goal取得
+    UserDB-->>LearningEngineLambda: ユーザーデータ
+    LearningEngineLambda->>Bedrock: 行動モデル構築・Future_Self_Model更新
+    Bedrock-->>LearningEngineLambda: BehaviorModel・FutureSelfModel
+    LearningEngineLambda->>UserDB: BehaviorModel・FutureSelfModel書き込み
+    LearningEngineLambda->>UserDB: Profile.behaviorTrends更新
+    LearningEngineLambda->>UserDB: Pivot_Goal昇格候補フラグ更新
+    UserDB-->>LearningEngineLambda: OK
 ```
 
 ### 7. アカウント削除フロー
 
-```
-ProfileScreens（アカウント削除ボタン）
-  → 確認ダイアログ表示
-  → useAuthService.deleteAccount()
-    → APIClient DELETE /users/{userId}
-      → API Gateway
-        → AccountLambda
-          → UserDB（User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel 削除）
-          → ActionLogDB（ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone 削除）
-          → CognitoUserPool（ユーザー削除）
-          ← DeleteAccountResult
-      ← DeleteAccountResult
-  → ZustandStore.clearAuth()
-  → AuthScreens（ログイン画面）へ遷移
+```mermaid
+sequenceDiagram
+    actor User
+    participant ProfileScreens
+    participant AccountLambda
+    participant UserDB
+    participant ActionLogDB
+    participant Cognito as CognitoUserPool
+
+    User->>ProfileScreens: アカウント削除ボタン
+    ProfileScreens-->>User: 確認ダイアログ
+    User->>ProfileScreens: 削除確認
+    ProfileScreens->>AccountLambda: DELETE /users/{userId}
+    AccountLambda->>UserDB: 全ユーザーデータ削除
+    UserDB-->>AccountLambda: OK
+    AccountLambda->>ActionLogDB: 全行動ログ削除
+    ActionLogDB-->>AccountLambda: OK
+    AccountLambda->>Cognito: ユーザー削除
+    Cognito-->>AccountLambda: OK
+    AccountLambda-->>ProfileScreens: DeleteAccountResult
+    ProfileScreens->>ProfileScreens: authStore.clearAuth()
+    ProfileScreens-->>User: AuthScreens（ログイン画面）へ遷移
 ```
 
 ---
