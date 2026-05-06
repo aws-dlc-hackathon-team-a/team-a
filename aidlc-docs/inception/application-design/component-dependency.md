@@ -20,8 +20,8 @@
 | useEffortPointService    | APIClient, ZustandStore                                                        |
 | AuthService(FE)          | AWS Amplify Auth, CognitoUserPool                                              |
 | APIClient                | AuthService(FE)（JWTトークン取得）                                             |
-| AuthLambda               | UserDB, ActionLogDB, SimilarUserDB, CognitoUserPool                            |
-| ProfileGoalLambda        | UserDB, BedrockClient, BackendErrorHandler                                     |
+| AccountLambda            | UserDB, ActionLogDB, SimilarUserDB, CognitoUserPool                            |
+| UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                     |
 | ActionTicketLambda       | UserDB, ActionLogDB, EffortPointLambda, BackendErrorHandler                    |
 | RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
 | EffortPointLambda        | ActionLogDB, BackendErrorHandler                                               |
@@ -32,7 +32,53 @@
 
 ## データフロー図
 
-### 1. Recommendation生成フロー
+### 1. 初期起動フロー（新規ユーザー）
+
+```
+AuthScreens（新規登録）
+  → useAuthService.signUp()
+    → AuthService(FE) → CognitoUserPool（アカウント作成）
+    ← SignUpResult
+  → AuthScreens（メール確認コード入力）
+  → useAuthService.confirmSignUp()
+    → AuthService(FE) → CognitoUserPool（メール確認）
+  → useAuthService.signIn()
+    → AuthService(FE) → CognitoUserPool（サインイン）
+    → ZustandStore.authSlice.setUser()
+  → OnboardingScreens（プロフィール登録）
+    → useProfileService.getProfileSuggestion()
+      → APIClient GET /users/{userId}/profiles/suggestions
+        → API Gateway → UserLambda → BedrockClient（AIサジェスト）
+    → useProfileService.updateProfile()
+      → APIClient PUT /users/{userId}/profiles
+        → API Gateway → UserLambda → UserDB（Profile書き込み）
+    → useGoalService.generateInitialPivotGoals()
+      → APIClient POST /users/{userId}/goals/generate
+        → API Gateway → UserLambda → BedrockClient（Pivot_Goal自動生成）
+        → UserLambda → UserDB（Goal書き込み）
+  → NavigationComponent → MainTab（ホーム）
+```
+
+### 2. アプリ起動フロー（既存ユーザー）
+
+```
+App起動
+  → useAuthService.getCurrentSession()
+    → AuthService(FE) → CognitoUserPool（セッション確認）
+    → 未認証: AuthScreensへ遷移
+    → 認証済み: ZustandStore.authSlice.setUser()
+  → useProfileService.getProfile()
+    → APIClient GET /users/{userId}/profiles
+      → API Gateway → UserLambda → UserDB（Profile取得）
+    → プロフィール未完了: OnboardingScreensへ遷移
+    → 完了: useActionTicketService.getOpenTickets()
+      → APIClient GET /tickets/{userId}
+        → API Gateway → ActionTicketLambda → ActionLogDB（Open Ticket取得）
+      → Open Ticket 0件: 自動Trigger発火 → Recommendationフローへ
+      → Open Ticket あり: HomeScreenへ遷移
+```
+
+### 3. Recommendation生成フロー
 
 ```
 HomeScreen
@@ -50,7 +96,7 @@ HomeScreen
   → RecommendationScreens（表示）
 ```
 
-### 2. Action_Ticket Done フロー
+### 4. Done申告フロー
 
 ```
 ActionTicketScreens / HomeScreen
@@ -69,7 +115,20 @@ ActionTicketScreens / HomeScreen
   → Persona_Message表示
 ```
 
-### 3. 週次バッチフロー
+### 5. 日次集計・自動破棄フロー
+
+```
+EventBridgeScheduler（ユーザー設定の集計時刻）
+  → ActionTicketLambda.expireTickets()
+    → ActionLogDB（Open Ticketを破棄ステータスに更新）
+    → ActionLogDB（DailySummary書き込み）
+    ← ExpireTicketsResult（破棄件数・Done件数）
+  → EffortPointLambda.runDailyAggregation()
+    → ActionLogDB（DailySummary集計）
+  ※ 破棄メッセージ（Persona_Messageトーン）は次回アプリ起動時にフロントエンドが表示
+```
+
+### 6. 週次バッチフロー
 
 ```
 EventBridgeScheduler（毎週月曜0時）
@@ -82,16 +141,23 @@ EventBridgeScheduler（毎週月曜0時）
     → UserDB（Pivot_Goal昇格候補フラグ更新）
 ```
 
-### 4. 日次集計・自動破棄フロー
+### 7. アカウント削除フロー
 
 ```
-EventBridgeScheduler（ユーザー設定の集計時刻）
-  → ActionTicketLambda.expireTickets()
-    → ActionLogDB（Open Ticketを破棄ステータスに更新）
-    → ActionLogDB（DailySummary書き込み）
-    ← ExpireTicketsResult（破棄件数・Done件数）
-  → EffortPointLambda.runDailyAggregation()
-    → ActionLogDB（DailySummary集計）
+ProfileScreens（アカウント削除ボタン）
+  → 確認ダイアログ表示
+  → useAuthService.deleteAccount()
+    → APIClient DELETE /users/{userId}
+      → API Gateway
+        → AccountLambda
+          → UserDB（User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel 削除）
+          → ActionLogDB（ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone 削除）
+          → SimilarUserDB（SimilarUserData 削除）
+          → CognitoUserPool（ユーザー削除）
+          ← DeleteAccountResult
+      ← DeleteAccountResult
+  → ZustandStore.clearAuth()
+  → AuthScreens（ログイン画面）へ遷移
 ```
 
 ---
