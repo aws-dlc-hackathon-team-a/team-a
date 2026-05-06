@@ -37,7 +37,7 @@ function useDeleteAccount(): UseMutationResult<void, void>;
 
 - サインイン成功時 → ZustandStore.authSlice.setUser() → NavigationComponent でMainTabへ遷移
 - サインアウト時 → ZustandStore.clearAuth() → AuthStackへ遷移
-- アカウント削除時 → AuthLambda呼び出し → ZustandStore.clearAuth() → ログイン画面へ遷移
+- アカウント削除時 → AccountLambda呼び出し → ZustandStore.clearAuth() → ログイン画面へ遷移
 
 ---
 
@@ -174,8 +174,7 @@ App起動
 ```
 Done申告
   → useActionTicketService.completeTicket()
-    → ActionTicketLambda: Action_Log記録（リアルタイム）
-    → EffortPointLambda: ポイント計算・付与
+    → ActionTicketLambda: Action_Log記録（リアルタイム）+ Effort_Point計算・付与・マイルストーン判定
     → レスポンス: { ticket, pointsAwarded, totalPoints, milestoneReached }
   → ZustandStore更新
   → Persona_Message表示（肯定メッセージ + ポイント）

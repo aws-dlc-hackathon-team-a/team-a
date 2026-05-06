@@ -21,7 +21,7 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
                        │
 ┌──────────────────────▼──────────────────────────────┐
 │              Backend Lambda Functions (AWS)          │
-│  Auth / Profile+Goal / ActionTicket / Recommendation │
+│  Account / User / ActionTicket / Recommendation      │
 │  DailyAggregation / LearningEngine(Batch)            │
 └──────┬───────────────┬──────────────────────────────┘
        │               │
@@ -137,7 +137,7 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 
 ## 2. Backend Lambda コンポーネント
 
-### 2.1 AuthLambda
+### 2.1 AccountLambda
 
 | 項目         | 内容                                                                                                                                                 |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -146,14 +146,14 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **トリガー** | API Gateway DELETE /users/{userId}                                                                                                                   |
 | **依存**     | DynamoDB（UserDB・ActionLogDB・SimilarUserDB）、AWS Cognito                                                                                          |
 
-### 2.2 ProfileGoalLambda
+### 2.2 UserLambda
 
-| 項目         | 内容                                                                                                                                                                 |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                                                                                                      |
-| **責務**     | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更）のCRUD処理を担う。ProfileとGoalはアクセスリソース単位が近いため統合する |
-| **トリガー** | API Gateway /profiles/{userId}、/goals/{userId}                                                                                                                      |
-| **依存**     | DynamoDB（UserDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                           |
+| 項目         | 内容                                                                                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**     | AWS Lambda 関数                                                                                                                                                                    |
+| **責務**     | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更）のCRUD処理を担う。ProfileとGoalはどちらもUserに紐づき同じUserDBを参照するため統合する |
+| **トリガー** | API Gateway /users/{userId}/profiles、/users/{userId}/goals                                                                                                                        |
+| **依存**     | DynamoDB（UserDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                                         |
 
 ### 2.3 ActionTicketLambda
 
@@ -269,8 +269,8 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 10  | APIClient               | Frontend     | HTTPクライアント     |
 | 11  | AuthService（Frontend） | Frontend     | Amplifyラッパー      |
 | 12  | FrontendErrorHandler    | Frontend     | 共通エラー処理       |
-| 13  | AuthLambda              | Backend      | Lambda               |
-| 14  | ProfileGoalLambda       | Backend      | Lambda               |
+| 13  | AccountLambda           | Backend      | Lambda               |
+| 14  | UserLambda              | Backend      | Lambda               |
 | 15  | ActionTicketLambda      | Backend      | Lambda               |
 | 16  | RecommendationLambda    | Backend      | Lambda               |
 | 17  | DailyAggregationLambda  | Backend      | Lambda               |

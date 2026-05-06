@@ -109,7 +109,7 @@ interface FrontendErrorHandler {
 
 ---
 
-## 5. AuthLambda
+## 5. AccountLambda
 
 ```typescript
 // DELETE /users/{userId}
@@ -124,7 +124,7 @@ async function deleteAccount(userId: string): Promise<DeleteAccountResult>;
 
 ---
 
-## 6. ProfileGoalLambda
+## 6. UserLambda
 
 ```typescript
 // Profile CRUD
