@@ -2,54 +2,58 @@
 
 ## 概要
 
-本ドキュメントは各コンポーネント間の依存関係と、主要ユースケースのデータフローを定義する。
-「どのコンポーネントが何に依存しているか」「あるユースケースでデータがどう流れるか」を確認したいときに参照する。
+本ドキュメントは各コンポーネント間の依存関係と、主要ユースケースのデータフローを定義する。  
+「どのコンポーネントが何に依存しているか」「あるユースケースでデータがどう流れるか」を確認したいときに参照する。  
 コンポーネントの責務定義は [components.md](./components.md)、アーキテクチャ全体像は [application-design.md](./application-design.md) を参照。
 
 ## 目次
 
-- [依存関係マトリクス](#依存関係マトリクス)
-- [データフロー図](#データフロー図)
-  - [1. 初期起動フロー（新規ユーザー）](#1-初期起動フロー新規ユーザー)
-  - [2. アプリ起動フロー（既存ユーザー）](#2-アプリ起動フロー既存ユーザー)
-  - [3. Recommendation生成フロー](#3-recommendation生成フロー)
-  - [4. Done申告フロー](#4-done申告フロー)
-  - [5. 日次集計・自動破棄フロー](#5-日次集計自動破棄フロー)
-  - [6. 週次バッチフロー](#6-週次バッチフロー)
-  - [7. アカウント削除フロー](#7-アカウント削除フロー)
-- [通信パターン](#通信パターン)
-- [循環依存の排除](#循環依存の排除)
+- [コンポーネント依存関係 — だが、それでいい（DagaSoreDeIi\_App）](#コンポーネント依存関係--だがそれでいいdagasoredeii_app)
+  - [概要](#概要)
+  - [目次](#目次)
+  - [依存関係マトリクス](#依存関係マトリクス)
+  - [データフロー図](#データフロー図)
+    - [1. 初期起動フロー（新規ユーザー）](#1-初期起動フロー新規ユーザー)
+    - [2. アプリ起動フロー（既存ユーザー）](#2-アプリ起動フロー既存ユーザー)
+    - [3. Recommendation生成フロー](#3-recommendation生成フロー)
+    - [4. Done申告フロー](#4-done申告フロー)
+    - [5. 日次集計・自動破棄フロー](#5-日次集計自動破棄フロー)
+    - [6. 週次バッチフロー](#6-週次バッチフロー)
+    - [7. Stats・サマリー表示フロー](#7-statsサマリー表示フロー)
+    - [8. アカウント削除フロー](#8-アカウント削除フロー)
+  - [通信パターン](#通信パターン)
+  - [循環依存の排除](#循環依存の排除)
 
 ---
 
 ## 依存関係マトリクス
 
-| コンポーネント           | 依存先                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| AuthScreens              | AuthService(FE), NavigationComponent                                           |
-| OnboardingScreens        | useProfileService, useGoalService, NavigationComponent                         |
-| HomeScreen               | useTriggerService, useActionTicketService, useEffortPointService, ZustandStore |
-| RecommendationScreens    | useRecommendationService, useActionTicketService, ZustandStore                 |
-| ActionTicketScreens      | useActionTicketService, ZustandStore                                           |
-| ProfileScreens           | useProfileService, useGoalService, ZustandStore                                |
-| StatsScreens             | useEffortPointService, ZustandStore                                            |
-| useAuthService           | AuthService(FE), APIClient, ZustandStore                                       |
-| useProfileService        | APIClient, ZustandStore                                                        |
-| useGoalService           | APIClient, ZustandStore                                                        |
-| useTriggerService        | APIClient, ZustandStore                                                        |
-| useRecommendationService | APIClient, ZustandStore                                                        |
-| useActionTicketService   | APIClient, ZustandStore                                                        |
-| useEffortPointService    | APIClient, ZustandStore                                                        |
-| AuthService(FE)          | AWS Amplify Auth, CognitoUserPool                                              |
-| APIClient                | AuthService(FE)（JWTトークン取得）                                             |
-| AccountLambda            | UserDB, ActionLogDB, SimilarUserDB, CognitoUserPool                            |
-| UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                     |
-| ActionTicketLambda       | ActionLogDB, BackendErrorHandler                                               |
-| RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
-| DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                               |
-| StatsLambda              | ActionLogDB, BackendErrorHandler                                               |
-| LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
-| EventBridgeScheduler     | LearningEngineLambda, DailyAggregationLambda                                   |
+| コンポーネント           | 依存先                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| AuthScreens              | AuthService(FE), NavigationComponent                                                     |
+| OnboardingScreens        | useProfileService, useGoalService, NavigationComponent                                   |
+| HomeScreen               | useTriggerService, useActionTicketService, useEffortPointService, authStore, ticketStore |
+| RecommendationScreens    | useRecommendationService, useActionTicketService, recommendationStore, ticketStore       |
+| ActionTicketScreens      | useActionTicketService, ticketStore                                                      |
+| ProfileScreens           | useProfileService, useGoalService                                                        |
+| StatsScreens             | useEffortPointService                                                                    |
+| useAuthService           | AuthService(FE), APIClient, authStore                                                    |
+| useProfileService        | APIClient                                                                                |
+| useGoalService           | APIClient                                                                                |
+| useTriggerService        | APIClient, ticketStore                                                                   |
+| useRecommendationService | APIClient, recommendationStore, ticketStore                                              |
+| useActionTicketService   | APIClient, ticketStore                                                                   |
+| useEffortPointService    | APIClient                                                                                |
+| AuthService(FE)          | AWS Amplify Auth, CognitoUserPool                                                        |
+| APIClient                | AuthService(FE)（JWTトークン取得）                                                       |
+| AccountLambda            | UserDB, ActionLogDB, CognitoUserPool（SimilarUserDBは匿名化済みのため削除対象外）        |
+| UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                               |
+| ActionTicketLambda       | ActionLogDB, BackendErrorHandler                                                         |
+| RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                                  |
+| DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                                         |
+| StatsLambda              | ActionLogDB, BackendErrorHandler                                                         |
+| LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                                  |
+| EventBridgeScheduler     | LearningEngineLambda, DailyAggregationLambda                                             |
 
 ---
 
@@ -226,7 +230,44 @@ sequenceDiagram
     UserDB-->>LearningEngineLambda: OK
 ```
 
-### 7. アカウント削除フロー
+### 7. Stats・サマリー表示フロー
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant HomeScreen
+    participant StatsScreens
+    participant StatsLambda
+    participant ActionLogDB
+
+    Note over HomeScreen: Effort_Pointサマリー表示（ホーム画面）
+    HomeScreen->>StatsLambda: GET /stats/{userId}/total-points
+    StatsLambda->>ActionLogDB: 累計ポイント取得
+    ActionLogDB-->>StatsLambda: totalPoints
+    StatsLambda-->>HomeScreen: totalPoints
+    HomeScreen-->>User: Effort_Pointサマリー表示
+
+    Note over StatsScreens: 統計グラフ表示（Stats画面）
+    User->>StatsScreens: Stats画面を開く
+    StatsScreens->>StatsLambda: GET /stats/{userId}/daily
+    StatsLambda->>ActionLogDB: 日次サマリー取得
+    ActionLogDB-->>StatsLambda: DailySummary
+    StatsLambda-->>StatsScreens: DailySummary
+
+    StatsScreens->>StatsLambda: GET /stats/{userId}/weekly
+    StatsLambda->>ActionLogDB: 週間サマリー取得
+    ActionLogDB-->>StatsLambda: WeeklySummary
+    StatsLambda-->>StatsScreens: WeeklySummary
+
+    StatsScreens->>StatsLambda: GET /stats/{userId}/monthly
+    StatsLambda->>ActionLogDB: 月間サマリー取得
+    ActionLogDB-->>StatsLambda: MonthlySummary
+    StatsLambda-->>StatsScreens: MonthlySummary
+
+    StatsScreens-->>User: 週間/月間グラフ・得意な行動パターン表示
+```
+
+### 8. アカウント削除フロー
 
 ```mermaid
 sequenceDiagram
@@ -240,16 +281,21 @@ sequenceDiagram
     User->>ProfileScreens: アカウント削除ボタン
     ProfileScreens-->>User: 確認ダイアログ
     User->>ProfileScreens: 削除確認
-    ProfileScreens->>AccountLambda: DELETE /users/{userId}
-    AccountLambda->>UserDB: 全ユーザーデータ削除
-    UserDB-->>AccountLambda: OK
-    AccountLambda->>ActionLogDB: 全行動ログ削除
-    ActionLogDB-->>AccountLambda: OK
-    AccountLambda->>Cognito: ユーザー削除
-    Cognito-->>AccountLambda: OK
-    AccountLambda-->>ProfileScreens: DeleteAccountResult
-    ProfileScreens->>ProfileScreens: authStore.clearAuth()
-    ProfileScreens-->>User: AuthScreens（ログイン画面）へ遷移
+    ProfileScreens->>AccountLambda: DELETE /users/{userId}（JWTトークン付き）
+    AccountLambda->>AccountLambda: JWT sub と path userId の一致確認
+    alt 不一致（他ユーザーのデータへのアクセス）
+        AccountLambda-->>ProfileScreens: 403 Forbidden
+    else 一致
+        AccountLambda->>UserDB: 全ユーザーデータ削除
+        UserDB-->>AccountLambda: OK
+        AccountLambda->>ActionLogDB: 全行動ログ削除
+        ActionLogDB-->>AccountLambda: OK
+        AccountLambda->>Cognito: ユーザー削除
+        Cognito-->>AccountLambda: OK
+        AccountLambda-->>ProfileScreens: DeleteAccountResult
+        ProfileScreens->>ProfileScreens: authStore.clearAuth()
+        ProfileScreens-->>User: AuthScreens（ログイン画面）へ遷移
+    end
 ```
 
 ---
@@ -271,4 +317,4 @@ sequenceDiagram
 - Lambda間の直接呼び出しはなし
 - EventBridgeトリガーのバッチ処理（DailyAggregationLambda・LearningEngineLambda）とAPI処理（その他Lambda）は完全に分離
 - LearningEngineLambda は完全に非同期バッチ処理であり、他のLambdaから呼び出されない
-- ZustandStore はサービス層から更新され、画面コンポーネントから読み取る（単方向データフロー）
+- ZustandStore（authStore・ticketStore・recommendationStore）はサービス層から更新され、画面コンポーネントから読み取る（単方向データフロー）
