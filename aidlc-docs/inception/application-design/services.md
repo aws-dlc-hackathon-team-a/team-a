@@ -163,8 +163,8 @@ function useGetMonthlySummary(userId: string, month: string): UseQueryResult<Mon
 
 **オーケストレーション**:
 
-- ポイント取得時 → effortPointStore更新
-- マイルストーン達成時 → 特別メッセージ・バッジ表示
+- ポイント取得時（StatsLambda経由）→ effortPointStore更新
+- マイルストーン達成時 → 特別メッセージ・バッジ表示（FR-08-7: 累計100の倍数達成時）
 
 ---
 

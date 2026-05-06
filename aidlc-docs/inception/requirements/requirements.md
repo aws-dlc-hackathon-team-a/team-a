@@ -89,7 +89,7 @@
 
 - User DB: User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel
 - Action Log DB: ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone
-- Similar User DB: 当該ユーザーの行動データに基づくSimilarUserDataレコード
+- Similar User DB: 匿名化済みデータのため個人特定不可。アカウント削除対象外
 - Cognito: ユーザープールからアカウント削除
 
 ---
@@ -365,4 +365,5 @@
 | Action_Log           | ユーザーが実際に行った行動の記録                                                                                              |
 | Similar_User_Data    | 類似プロフィールを持つ他ユーザーの匿名化された行動データ（v2以降）                                                            |
 | Future_Self_Model    | Similar_User_Dataを基に構築した「未来の自分」モデル（v1: モックデータ）                                                       |
+| Milestone            | 累計Effort_Pointが100の倍数に達したときに発生する達成イベント。特別な達成メッセージとバッジ表示をトリガーする（FR-08-7）      |
 | Action_Ticket        | Recommendationへの応答時に生成される行動タスク（Open/Done）。content フィールドに具体的なアクションステップ（行動手順）を含む |

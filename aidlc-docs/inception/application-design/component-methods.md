@@ -11,8 +11,9 @@
 - [7. ActionTicketLambda](#7-actionticketlambda)
 - [8. RecommendationLambda](#8-recommendationlambda)
 - [9. DailyAggregationLambda](#9-dailyaggregationlambda)
-- [10. LearningEngineLambda](#10-learningenginelambda)
-- [11. BackendErrorHandler](#11-backenderrorhandler)
+- [10. StatsLambda](#10-statslambda)
+- [11. LearningEngineLambda](#11-learningenginelambda)
+- [12. BackendErrorHandler](#12-backenderrorhandler)
 - [型定義（主要）](#型定義主要)
 
 ---
@@ -134,9 +135,9 @@ async function deleteAccount(userId: string): Promise<DeleteAccountResult>;
 // 内部処理:
 //   1. UserDB から全ユーザーデータ削除
 //   2. ActionLogDB から全行動ログ削除
-//   3. SimilarUserDB から関連データ削除
-//   4. Cognito からユーザー削除
-//   5. 削除完了レスポンス返却
+//   3. Cognito からユーザー削除
+//   4. 削除完了レスポンス返却
+//   ※ SimilarUserDBは匿名化済みのため削除対象外
 ```
 
 ---
@@ -179,7 +180,6 @@ async function completeTicket(userId: string, ticketId: string): Promise<Complet
 //   5. CompleteTicketResult 返却
 
 // 自動破棄（EventBridge トリガー）
-async function expireTickets(userId: string, aggregationTime: number): Promise<ExpireTicketsResult>;
 async function getExpiredTicketHistory(userId: string): Promise<ExpiredTicket[]>;
 
 // Effort_Point 計算（純粋関数 — PBT対象）
@@ -218,9 +218,16 @@ function selectPromptStrategy(actionLogCount: number): "default" | "personalized
 ## 9. DailyAggregationLambda
 
 ```typescript
-// 日次集計（EventBridge トリガー）
+// 日次バッチエントリーポイント（EventBridge トリガー）
+async function expireTickets(userId: string, aggregationTime: number): Promise<ExpireTicketsResult>;
 async function runDailyAggregation(userId: string): Promise<DailyAggregationResult>;
+```
 
+---
+
+## 10. StatsLambda
+
+```typescript
 // 集計データ取得（API Gateway トリガー）
 async function getDailySummary(userId: string, date: string): Promise<DailySummary>;
 async function getWeeklySummary(userId: string, weekStart: string): Promise<WeeklySummary>;
@@ -230,7 +237,7 @@ async function getTotalPoints(userId: string): Promise<number>;
 
 ---
 
-## 10. LearningEngineLambda
+## 11. LearningEngineLambda
 
 ```typescript
 // 週次バッチエントリーポイント（EventBridge トリガー）
@@ -254,7 +261,7 @@ async function analyzeStrengthPatterns(userId: string, logs: ActionLogEntry[]): 
 
 ---
 
-## 11. BackendErrorHandler
+## 12. BackendErrorHandler
 
 ```typescript
 // 共通エラーハンドリングミドルウェア

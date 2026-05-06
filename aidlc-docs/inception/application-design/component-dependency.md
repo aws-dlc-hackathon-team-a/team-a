@@ -44,11 +44,12 @@
 | APIClient                | AuthService(FE)（JWTトークン取得）                                             |
 | AccountLambda            | UserDB, ActionLogDB, SimilarUserDB, CognitoUserPool                            |
 | UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                     |
-| ActionTicketLambda       | UserDB, ActionLogDB, BackendErrorHandler                                       |
+| ActionTicketLambda       | ActionLogDB, BackendErrorHandler                                               |
 | RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
 | DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                               |
+| StatsLambda              | ActionLogDB, BackendErrorHandler                                               |
 | LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                        |
-| EventBridgeScheduler     | LearningEngineLambda, ActionTicketLambda, DailyAggregationLambda               |
+| EventBridgeScheduler     | LearningEngineLambda, DailyAggregationLambda                                   |
 
 ---
 
@@ -141,12 +142,11 @@ ActionTicketScreens / HomeScreen
 
 ```
 EventBridgeScheduler（ユーザー設定の集計時刻）
-  → ActionTicketLambda.expireTickets()
+  → DailyAggregationLambda.expireTickets()
     → ActionLogDB（Open Ticketを破棄ステータスに更新）
-    → ActionLogDB（DailySummary書き込み）
     ← ExpireTicketsResult（破棄件数・Done件数）
   → DailyAggregationLambda.runDailyAggregation()
-    → ActionLogDB（DailySummary集計）
+    → ActionLogDB（DailySummary書き込み・集計）
   ※ 破棄メッセージ（Persona_Messageトーン）は次回アプリ起動時にフロントエンドが表示
 ```
 
@@ -174,7 +174,6 @@ ProfileScreens（アカウント削除ボタン）
         → AccountLambda
           → UserDB（User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModel 削除）
           → ActionLogDB（ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestone 削除）
-          → SimilarUserDB（SimilarUserData 削除）
           → CognitoUserPool（ユーザー削除）
           ← DeleteAccountResult
       ← DeleteAccountResult
@@ -189,8 +188,8 @@ ProfileScreens（アカウント削除ボタン）
 | パターン                     | 使用箇所                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------- |
 | **同期REST（HTTPS）**        | Frontend → API Gateway → Lambda（全通常API）                               |
-| **Lambda内部呼び出し**       | なし（ActionTicketLambdaがEffort_Point処理を内包）                         |
-| **EventBridge スケジュール** | 週次バッチ（LearningEngine）・日次集計（ActionTicket/DailyAggregation）    |
+| **Lambda内部呼び出し**       | なし                                                                       |
+| **EventBridge スケジュール** | 週次バッチ（LearningEngine）・日次バッチ（DailyAggregation）               |
 | **Amplify Auth直接**         | Frontend → CognitoUserPool（サインアップ・サインイン・パスワードリセット） |
 
 ---
@@ -198,6 +197,7 @@ ProfileScreens（アカウント削除ボタン）
 ## 循環依存の排除
 
 - Frontend サービス層はすべて APIClient を経由してバックエンドと通信する（直接Lambda呼び出しなし）
-- Lambda間の直接呼び出しはなし（ActionTicketLambdaがEffort_Point計算・付与を内包）
+- Lambda間の直接呼び出しはなし
+- EventBridgeトリガーのバッチ処理（DailyAggregationLambda・LearningEngineLambda）とAPI処理（その他Lambda）は完全に分離
 - LearningEngineLambda は完全に非同期バッチ処理であり、他のLambdaから呼び出されない
 - ZustandStore はサービス層から更新され、画面コンポーネントから読み取る（単方向データフロー）

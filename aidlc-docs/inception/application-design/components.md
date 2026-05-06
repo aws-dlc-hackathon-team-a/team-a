@@ -25,16 +25,13 @@
     - [2.3 ActionTicketLambda](#23-actionticketlambda)
     - [2.4 RecommendationLambda](#24-recommendationlambda)
     - [2.5 DailyAggregationLambda](#25-dailyaggregationlambda)
-    - [2.6 LearningEngineLambda](#26-learningenginelambda)
-    - [2.7 BackendErrorHandler](#27-backenderrorhandler)
+    - [2.6 StatsLambda](#26-statslambda)
+    - [2.7 LearningEngineLambda](#27-learningenginelambda)
+    - [2.8 BackendErrorHandler](#28-backenderrorhandler)
   - [3. データストアコンポーネント](#3-データストアコンポーネント)
     - [3.1 UserDB（DynamoDB テーブル）](#31-userdbdynamodb-テーブル)
     - [3.2 ActionLogDB（DynamoDB テーブル）](#32-actionlogdbdynamodb-テーブル)
     - [3.3 SimilarUserDB（DynamoDB テーブル）](#33-similaruserdbdynamodb-テーブル)
-  - [4. 外部サービスコンポーネント](#4-外部サービスコンポーネント)
-    - [4.1 CognitoUserPool](#41-cognitouserpool)
-    - [4.2 BedrockClient](#42-bedrockclient)
-    - [4.3 EventBridgeScheduler](#43-eventbridgescheduler)
 
 ---
 
@@ -67,15 +64,13 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 14  | UserLambda              | Backend      | Lambda                                     |
 | 15  | ActionTicketLambda      | Backend      | Lambda                                     |
 | 16  | RecommendationLambda    | Backend      | Lambda                                     |
-| 17  | DailyAggregationLambda  | Backend      | Lambda                                     |
-| 18  | LearningEngineLambda    | Backend      | Lambda（週次バッチ）                       |
-| 19  | BackendErrorHandler     | Backend      | 共通ミドルウェア                           |
-| 20  | UserDB                  | データストア | DynamoDB                                   |
-| 21  | ActionLogDB             | データストア | DynamoDB                                   |
-| 22  | SimilarUserDB           | データストア | DynamoDB                                   |
-| 23  | CognitoUserPool         | 外部サービス | AWS Cognito                                |
-| 24  | BedrockClient           | 外部サービス | Amazon Bedrock                             |
-| 25  | EventBridgeScheduler    | 外部サービス | EventBridge                                |
+| 17  | DailyAggregationLambda  | Backend      | Lambda（日次バッチ）                       |
+| 18  | StatsLambda             | Backend      | Lambda                                     |
+| 19  | LearningEngineLambda    | Backend      | Lambda（週次バッチ）                       |
+| 20  | BackendErrorHandler     | Backend      | 共通ミドルウェア                           |
+| 21  | UserDB                  | データストア | DynamoDB                                   |
+| 22  | ActionLogDB             | データストア | DynamoDB                                   |
+| 23  | SimilarUserDB           | データストア | DynamoDB                                   |
 
 ---
 
@@ -194,26 +189,28 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**     | AWS Lambda 関数                                                                                                                                      |
 | **責務**     | アカウント削除処理（確認→全データ削除→Cognito削除）を担う。サインアップ・サインイン・パスワードリセットはCognito/Amplifyが直接処理するためLambda不要 |
-| **トリガー** | API Gateway DELETE /users/{userId}                                                                                                                   |
-| **依存**     | DynamoDB（UserDB・ActionLogDB・SimilarUserDB）、AWS Cognito                                                                                          |
+| **トリガー** | `DELETE /users/{userId}`                                                                                                                             |
+| **依存**     | DynamoDB（UserDB・ActionLogDB）、AWS Cognito                                                                                                         |
+| **備考**     | SimilarUserDBは匿名化済みデータのため個人特定不可。アカウント削除対象外（個人情報保護法上も削除不要）                                                |
 
 ### 2.2 UserLambda
 
-| 項目         | 内容                                                                                                                                                                               |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                                                                                                                    |
-| **責務**     | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更）のCRUD処理を担う。ProfileとGoalはどちらもUserに紐づき同じUserDBを参照するため統合する |
-| **トリガー** | API Gateway /users/{userId}/profiles、/users/{userId}/goals                                                                                                                        |
-| **依存**     | DynamoDB（UserDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                                         |
+| 項目         | 内容                                                                                                                                                                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**     | AWS Lambda 関数                                                                                                                                                                                                                                                                             |
+| **責務**     | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更）のCRUD処理を担う。ProfileとGoalはどちらもUserに紐づき同じUserDBを参照するため統合する                                                                                                          |
+| **トリガー** | `GET /users/{userId}/profiles`、`PUT /users/{userId}/profiles`、`GET /users/{userId}/profiles/suggestions`、`GET /users/{userId}/goals`、`POST /users/{userId}/goals`、`PUT /users/{userId}/goals/{goalId}`、`DELETE /users/{userId}/goals/{goalId}`、`POST /users/{userId}/goals/generate` |
+| **依存**     | DynamoDB（UserDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                                                                                                                                                  |
 
 ### 2.3 ActionTicketLambda
 
-| 項目         | 内容                                                                                                                                                                                               |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                                                                                                                                    |
-| **責務**     | Action_Ticketの生成・一覧取得・Done申告・自動破棄処理・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point計算・付与・マイルストーン判定をこのLambda内で完結して処理する |
-| **トリガー** | API Gateway /tickets/{userId}、EventBridge（日次集計タイミングでの自動破棄）                                                                                                                       |
-| **依存**     | DynamoDB（UserDB・ActionLogDB）                                                                                                                                                                    |
+| 項目             | 内容                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **種別**         | AWS Lambda 関数                                                                                                                                                                      |
+| **責務**         | Action_Ticketの生成・一覧取得・Done申告・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point計算・付与・マイルストーン判定をこのLambda内で完結して処理する |
+| **トリガー**     | `POST /tickets/{userId}`（生成）、`GET /tickets/{userId}`（一覧）、`PUT /tickets/{userId}/{ticketId}/complete`（Done申告）、`GET /tickets/{userId}/expired`（破棄履歴）              |
+| **依存**         | DynamoDB（ActionLogDB）                                                                                                                                                              |
+| **主要メソッド** | `createTicket` / `getOpenTickets` / `completeTicket` / `getExpiredTicketHistory` / `calculatePoints`（純粋関数・PBT対象）/ `checkMilestone`                                          |
 
 ### 2.4 RecommendationLambda
 
@@ -221,33 +218,46 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**     | AWS Lambda 関数                                                                                                                                                   |
 | **責務**     | Trigger発火時のRecommendation生成・Pivot提案・ActionStep生成をAmazon Bedrockを使用して行う。Action_Log件数に応じてデフォルト/パーソナライズプロンプトを切り替える |
-| **トリガー** | API Gateway POST /recommendations/{userId}                                                                                                                        |
+| **トリガー** | `POST /recommendations/{userId}`（Recommendation生成）、`POST /recommendations/{userId}/pivot`（Pivot提案）                                                       |
 | **依存**     | DynamoDB（UserDB・ActionLogDB）、Amazon Bedrock                                                                                                                   |
 
 ### 2.5 DailyAggregationLambda
 
-| 項目         | 内容                                                                               |
-| ------------ | ---------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数                                                                    |
-| **責務**     | 日次集計処理（DailySummary生成・週間/月間集計・累計Effort_Point取得API提供）を担う |
-| **トリガー** | EventBridge（日次集計タイミング）、API Gateway（集計データ取得）                   |
-| **依存**     | DynamoDB（ActionLogDB）                                                            |
+| 項目             | 内容                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**         | AWS Lambda 関数（日次バッチ）                                                                                                          |
+| **責務**         | 日次バッチ処理を担う。ユーザー設定の集計時刻にEventBridgeから起動し、Open状態のAction_Ticketを自動破棄してDailySummaryを生成・集計する |
+| **トリガー**     | EventBridge（ユーザー設定の集計時刻）                                                                                                  |
+| **依存**         | DynamoDB（ActionLogDB）                                                                                                                |
+| **主要メソッド** | `expireTickets`（ActionTicketの自動破棄）/ `runDailyAggregation`（DailySummary集計）                                                   |
 
-### 2.6 LearningEngineLambda
+### 2.6 StatsLambda
 
-| 項目         | 内容                                                                                                                                                                                                                                                                    |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別**     | AWS Lambda 関数（週次バッチ）                                                                                                                                                                                                                                           |
-| **責務**     | 週次バッチ処理として全ユーザーのAction_Logを解析し、行動モデル（時間帯・曜日パターン・Yes/No傾向・actionLevel傾向・Goal選択傾向）を構築・更新する。Amazon Bedrockを使用してパーソナライズモデルを生成し、UserDBのBehaviorModelを更新する。Future_Self_Modelの更新も担う |
-| **トリガー** | EventBridge（毎週月曜0時）                                                                                                                                                                                                                                              |
-| **依存**     | DynamoDB（UserDB・ActionLogDB）、Amazon Bedrock                                                                                                                                                                                                                         |
+| 項目             | 内容                                                                                                                         |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **種別**         | AWS Lambda 関数                                                                                                              |
+| **責務**         | 集計データの取得APIを提供する。StatsScreensのグラフ表示・HomeScreenのEffort_Pointサマリー表示に使用する                      |
+| **トリガー**     | `GET /stats/{userId}/daily`、`GET /stats/{userId}/weekly`、`GET /stats/{userId}/monthly`、`GET /stats/{userId}/total-points` |
+| **依存**         | DynamoDB（ActionLogDB）                                                                                                      |
+| **主要メソッド** | `getDailySummary` / `getWeeklySummary` / `getMonthlySummary` / `getTotalPoints`                                              |
 
-### 2.7 BackendErrorHandler
+### 2.7 LearningEngineLambda
 
-| 項目     | 内容                                                                                                                                                                      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別** | 共通Lambdaミドルウェア/ユーティリティモジュール                                                                                                                           |
-| **責務** | 全Lambda共通のエラーハンドリング（Bedrockタイムアウト・DynamoDB障害・バリデーションエラー）とフォールバックレスポンス生成を担う。各Lambdaから共通モジュールとして使用する |
+| 項目             | 内容                                                                                                                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**         | AWS Lambda 関数（週次バッチ）                                                                                                                                                                                                                                           |
+| **責務**         | 週次バッチ処理として全ユーザーのAction_Logを解析し、行動モデル（時間帯・曜日パターン・Yes/No傾向・actionLevel傾向・Goal選択傾向）を構築・更新する。Amazon Bedrockを使用してパーソナライズモデルを生成し、UserDBのBehaviorModelを更新する。Future_Self_Modelの更新も担う |
+| **トリガー**     | EventBridge（毎週月曜0時）                                                                                                                                                                                                                                              |
+| **依存**         | DynamoDB（UserDB・ActionLogDB）、Amazon Bedrock                                                                                                                                                                                                                         |
+| **主要メソッド** | `runWeeklyBatch` / `buildBehaviorModel` / `updateProfileBehaviorTrends` / `updateFutureSelfModel` / `checkPivotGoalPromotion` / `analyzeStrengthPatterns`                                                                                                               |
+
+### 2.8 BackendErrorHandler
+
+| 項目             | 内容                                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**         | 共通Lambdaミドルウェア/ユーティリティモジュール                                                                                                                           |
+| **責務**         | 全Lambda共通のエラーハンドリング（Bedrockタイムアウト・DynamoDB障害・バリデーションエラー）とフォールバックレスポンス生成を担う。各Lambdaから共通モジュールとして使用する |
+| **主要メソッド** | `withErrorHandling` / `handleBedrockError` / `handleDynamoDBError` / `createErrorResponse`                                                                                |
 
 ---
 
@@ -260,14 +270,16 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **種別**         | AWS DynamoDB テーブル                                                                                                            |
 | **責務**         | ユーザー関連データの永続化。User・Profile・ProfileUpdateHistory・Goal・TriggerSettings・FutureSelfModel・BehaviorModelを格納する |
 | **キャパシティ** | オンデマンドモード                                                                                                               |
+| **型定義参照**   | [component-methods.md — 型定義（主要）](./component-methods.md#型定義主要) ※ User・Profile・Goal等の詳細な型定義を参照           |
 
 ### 3.2 ActionLogDB（DynamoDB テーブル）
 
-| 項目             | 内容                                                                                                           |
-| ---------------- | -------------------------------------------------------------------------------------------------------------- |
-| **種別**         | AWS DynamoDB テーブル                                                                                          |
-| **責務**         | 行動ログ関連データの永続化。ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestoneを格納する |
-| **キャパシティ** | オンデマンドモード                                                                                             |
+| 項目             | 内容                                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **種別**         | AWS DynamoDB テーブル                                                                                                              |
+| **責務**         | 行動ログ関連データの永続化。ActionLogEntry・ActionTicket・EffortPointRecord・DailySummary・Milestoneを格納する                     |
+| **キャパシティ** | オンデマンドモード                                                                                                                 |
+| **型定義参照**   | [component-methods.md — 型定義（主要）](./component-methods.md#型定義主要) ※ ActionTicket・EffortPointRecord等の詳細な型定義を参照 |
 
 ### 3.3 SimilarUserDB（DynamoDB テーブル）
 
@@ -276,28 +288,3 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **種別**         | AWS DynamoDB テーブル                                                                                       |
 | **責務**         | 類似ユーザーデータの永続化。SimilarUserDataレコードを格納する（v1はモックデータのみ。実データ収集はv2以降） |
 | **キャパシティ** | オンデマンドモード                                                                                          |
-
----
-
-## 4. 外部サービスコンポーネント
-
-### 4.1 CognitoUserPool
-
-| 項目     | 内容                                                                                                                   |
-| -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **種別** | AWS Cognito User Pool                                                                                                  |
-| **責務** | ユーザー認証・セッション管理・メール確認・パスワードリセットを担う。Amplify Authを通じてフロントエンドから直接操作する |
-
-### 4.2 BedrockClient
-
-| 項目     | 内容                                                                                                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **種別** | Amazon Bedrock API                                                                                                                                                                   |
-| **責務** | LLMによるRecommendation生成・Persona_Message生成・プロフィールAIサジェスト・Pivot_Goal自動生成・行動モデル構築を担う。各LambdaからAWS SDK v3経由で直接呼び出す（タイムアウト: 10秒） |
-
-### 4.3 EventBridgeScheduler
-
-| 項目     | 内容                                                                                                                                                            |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **種別** | Amazon EventBridge Scheduler                                                                                                                                    |
-| **責務** | 定期実行トリガーを管理する。LearningEngineLambda（毎週月曜0時）・ActionTicketLambda自動破棄（ユーザー設定の集計時刻）・DailyAggregationLambda日次集計を発火する |

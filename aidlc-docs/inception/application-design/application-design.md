@@ -34,14 +34,14 @@
 
 本システムは以下の5ドメインで構成する。
 
-| ドメイン           | 責務                                                                           | 主なLambda / コンポーネント                 |
-| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------- |
-| **Account**        | 認証・アカウント管理（登録・ログイン・削除）                                   | AccountLambda、CognitoUserPool              |
-| **User**           | プロフィール・Goal管理、AIサジェスト                                           | UserLambda、UserDB                          |
-| **ActionTicket**   | チケット生成・完了申告・自動破棄                                               | ActionTicketLambda、ActionLogDB             |
-| **Recommendation** | Trigger発火・Recommendation生成・Pivot・ActionStep                             | RecommendationLambda、BedrockClient         |
-| **EffortPoint**    | ポイント付与・集計・マイルストーン判定（Done申告時はActionTicketLambdaが処理） | DailyAggregationLambda、ActionLogDB         |
-| **LearningEngine** | 週次バッチ・行動モデル構築・Future_Self_Model更新                              | LearningEngineLambda、BedrockClient、UserDB |
+| ドメイン           | 責務                                                          | 主なLambda / コンポーネント                                          |
+| ------------------ | ------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Account**        | 認証・アカウント管理（登録・ログイン・削除）                  | AccountLambda、CognitoUserPool                                       |
+| **User**           | プロフィール・Goal管理、AIサジェスト                          | UserLambda、UserDB                                                   |
+| **ActionTicket**   | チケット生成・完了申告・自動破棄                              | ActionTicketLambda、ActionLogDB                                      |
+| **Recommendation** | Trigger発火・Recommendation生成・Pivot・ActionStep            | RecommendationLambda、BedrockClient                                  |
+| **EffortPoint**    | ポイント付与（Done申告時）・日次集計バッチ・集計データ取得API | ActionTicketLambda、DailyAggregationLambda、StatsLambda、ActionLogDB |
+| **LearningEngine** | 週次バッチ・行動モデル構築・Future_Self_Model更新             | LearningEngineLambda、BedrockClient、UserDB                          |
 
 ---
 
@@ -58,42 +58,38 @@
 │  │  ProfileScreens / StatsScreens                                  │ │
 │  └──────────────────────────────┬──────────────────────────────────┘ │
 │                                 │                                     │
-│  ┌──────────────────────────────┬──────────────────────────────────┐ │
-│  │  ┌───────────────────────────▼──────────────────────────────┐  │ │
-│  │  │              Service Layer (React Query Hooks)            │  │ │
-│  │  │  useAuthService / useProfileService / useGoalService      │  │ │
-│  │  │  useTriggerService / useRecommendationService             │  │ │
-│  │  │  useActionTicketService / useEffortPointService           │  │ │
-│  │  └────────────────────────┬─────────────────────────────────┘  │ │
-│  └───────────────────────────┼────────────────────────────────────┘ │
-│                              │                                       │
-│  ┌───────────────────────────▼────────────────────────────────────┐  │
-│  │  Zustand Stores  │  APIClient (axios+RQ)  │  AuthService       │  │
-│  └───────────────────────────┬────────────────────────────────────┘  │
-└──────────────────────────────┼───────────────────────────────────────┘
-                            │ HTTPS / REST
-┌───────────────────────────▼──────────────────────────────────────────┐
-│                        API Gateway (AWS)                              │
-└───────────────────────────┬──────────────────────────────────────────┘
-                            │
-┌───────────────────────────▼──────────────────────────────────────────┐
-│                     Backend Lambda Functions                          │
-│                                                                       │
-│  ┌───────────────┐  ┌─────────────┐  ┌────────────────────┐         │
-│  │ AccountLambda │  │ UserLambda  │  │ActionTicketLambda  │         │
-│  └───────────────┘  └─────────────┘  └────────────────────┘         │
-│  ┌──────────────────────┐  ┌──────────────────────┐                  │
-│  │ RecommendationLambda │  │ DailyAggregationLambda│                 │
-│  └──────────────────────┘  └──────────────────────┘                  │
-│                                                                       │
-│  ┌───────────────────────────────────────────────────────────────┐   │
-│  │  LearningEngineLambda（週次バッチ: EventBridge）               │   │
-│  └───────────────────────────────────────────────────────────────┘   │
-│                                                                       │
-│  ┌───────────────────────────────────────────────────────────────┐   │
-│  │  BackendErrorHandler（共通ミドルウェア）                       │   │
-│  └───────────────────────────────────────────────────────────────┘   │
-└──────────┬──────────────────────────────────┬────────────────────────┘
+│  ┌──────────────────────────────▼──────────────────────────────────┐ │
+│  │              Service Layer (React Query Hooks)                  │ │
+│  │  useAuthService / useProfileService / useGoalService            │ │
+│  │  useTriggerService / useRecommendationService                   │ │
+│  │  useActionTicketService / useEffortPointService                 │ │
+│  └────────────────────────┬────────────────────────────────────────┘ │
+│                           │                                           │
+│  ┌────────────────────────▼────────────────────────────────────────┐ │
+│  │  Zustand Stores  │  APIClient (axios+RQ)  │  AuthService        │ │
+│  └──────────┬─────────────────────┬──────────────────┬────────────┘ │
+└─────────────┼─────────────────────┼──────────────────┼──────────────┘
+              │ HTTPS / REST        │                  │ Amplify Auth
+              ▼                     │                  ▼
+┌─────────────────────────┐         │    ┌─────────────────────────────┐
+│   API Gateway (AWS)     │         │    │   AWS Cognito User Pool      │
+└────────────┬────────────┘         │    │   （サインアップ・サインイン  │
+             │                      │    │    パスワードリセット）       │
+             ▼                      │    └─────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                     Backend Lambda Functions                        │
+│                                                                     │
+│  ┌───────────────┐  ┌─────────────┐  ┌────────────────────┐       │
+│  │ AccountLambda │  │ UserLambda  │  │ActionTicketLambda  │       │
+│  └───────────────┘  └─────────────┘  └────────────────────┘       │
+│  ┌──────────────────────┐  ┌─────────────┐  ┌────────────────┐    │
+│  │ RecommendationLambda │  │ StatsLambda │  │BackendError    │    │
+│  └──────────────────────┘  └─────────────┘  │Handler        │    │
+│                                              └────────────────┘    │
+│  ┌───────────────────────────────────────────────────────────┐    │
+│  │  LearningEngineLambda（週次バッチ）                        │    │
+│  └───────────────────────────────────────────────────────────┘    │
+└──────────┬──────────────────────────────────┬─────────────────────┘
            │                                  │
 ┌──────────▼──────────┐          ┌────────────▼──────────────────┐
 │     DynamoDB        │          │       Amazon Bedrock           │
@@ -103,10 +99,17 @@
 │  │  ActionLogDB  │  │          │  行動モデル構築                │
 │  ├───────────────┤  │          └───────────────────────────────┘
 │  │ SimilarUserDB │  │
-│  └───────────────┘  │          ┌───────────────────────────────┐
-└─────────────────────┘          │    AWS Cognito User Pool       │
-                                 │  （Amplify Auth経由）          │
-                                 └───────────────────────────────┘
+│  └───────────────┘  │
+└─────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Amazon EventBridge Scheduler                      │
+│                                                                      │
+│  毎週月曜0時 ──────────────────────────→ LearningEngineLambda       │
+│  ユーザー設定の集計時刻 ───────────────→ DailyAggregationLambda     │
+│                                          （expireTickets +           │
+│                                           runDailyAggregation）      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -132,26 +135,24 @@
 
 ### Backend（AWS Lambda）
 
-| コンポーネント         | 役割                                   | 参照               |
-| ---------------------- | -------------------------------------- | ------------------ |
-| AccountLambda          | アカウント削除                         | components.md #2.1 |
-| UserLambda             | Profile・Goal CRUD + AIサジェスト      | components.md #2.2 |
-| ActionTicketLambda     | Ticket管理・Effort_Point付与・自動破棄 | components.md #2.3 |
-| RecommendationLambda   | Recommendation・Pivot生成              | components.md #2.4 |
-| DailyAggregationLambda | 日次集計・累計Effort_Point取得         | components.md #2.5 |
-| LearningEngineLambda   | 週次バッチ・行動モデル構築             | components.md #2.6 |
-| BackendErrorHandler    | 共通エラーハンドリング                 | components.md #2.7 |
+| コンポーネント         | 役割                                    | 参照               |
+| ---------------------- | --------------------------------------- | ------------------ |
+| AccountLambda          | アカウント削除                          | components.md #2.1 |
+| UserLambda             | Profile・Goal CRUD + AIサジェスト       | components.md #2.2 |
+| ActionTicketLambda     | Ticket管理・Effort_Point付与（API専用） | components.md #2.3 |
+| RecommendationLambda   | Recommendation・Pivot生成               | components.md #2.4 |
+| DailyAggregationLambda | 日次バッチ（自動破棄・集計）            | components.md #2.5 |
+| StatsLambda            | 集計データ取得API                       | components.md #2.6 |
+| LearningEngineLambda   | 週次バッチ・行動モデル構築              | components.md #2.7 |
+| BackendErrorHandler    | 共通エラーハンドリング                  | components.md #2.8 |
 
-### データストア・外部サービス
+### データストア
 
-| コンポーネント       | 役割                             | 参照               |
-| -------------------- | -------------------------------- | ------------------ |
-| UserDB               | ユーザー関連データ永続化         | components.md #3.1 |
-| ActionLogDB          | 行動ログ永続化                   | components.md #3.2 |
-| SimilarUserDB        | 類似ユーザーデータ（v1: モック） | components.md #3.3 |
-| CognitoUserPool      | 認証・セッション管理             | components.md #4.1 |
-| BedrockClient        | LLM API                          | components.md #4.2 |
-| EventBridgeScheduler | 定期実行トリガー                 | components.md #4.3 |
+| コンポーネント | 役割                             | 参照               |
+| -------------- | -------------------------------- | ------------------ |
+| UserDB         | ユーザー関連データ永続化         | components.md #3.1 |
+| ActionLogDB    | 行動ログ永続化                   | components.md #3.2 |
+| SimilarUserDB  | 類似ユーザーデータ（v1: モック） | components.md #3.3 |
 
 ---
 
@@ -186,28 +187,27 @@
 ```
 AccountLambda ──────────────────────────────→ UserDB
                                             → ActionLogDB
-                                            → SimilarUserDB
                                             → CognitoUserPool
 
 UserLambda ─────────────────────────────────→ UserDB
                                             → Bedrock（AIサジェスト・Pivot_Goal生成）
 
-ActionTicketLambda ─────────────────────────→ UserDB
-                                            → ActionLogDB（ActionLogEntry・EffortPointRecord書き込み）
+ActionTicketLambda ─────────────────────────→ ActionLogDB（ActionLogEntry・EffortPointRecord書き込み）
 
 RecommendationLambda ───────────────────────→ UserDB
                                             → ActionLogDB
                                             → Bedrock（Recommendation生成）
 
-DailyAggregationLambda ─────────────────────→ ActionLogDB（DailySummary集計・取得）
+DailyAggregationLambda ─────────────────────→ ActionLogDB（expireTickets・DailySummary集計）
+
+StatsLambda ────────────────────────────────→ ActionLogDB（集計データ取得）
 
 LearningEngineLambda ───────────────────────→ UserDB
                                             → ActionLogDB
                                             → Bedrock（行動モデル構築）
 
-EventBridgeScheduler ──[週次]──────────────→ LearningEngineLambda
-                     ──[日次]──────────────→ ActionTicketLambda（自動破棄）
-                                           → DailyAggregationLambda（日次集計）
+EventBridgeScheduler ──[週次・月曜0時]─────→ LearningEngineLambda
+                     ──[日次・集計時刻]────→ DailyAggregationLambda
 ```
 
 ---
