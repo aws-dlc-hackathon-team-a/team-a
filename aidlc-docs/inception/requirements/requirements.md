@@ -73,6 +73,8 @@
 
 **概要**: AWS Cognito を使用したメール/パスワード認証
 
+**認可方針**: すべてのバックエンド API は AWS Cognito User Pool で認証済みの JWT を必要とする。API Gateway の Cognito Authorizer で JWT の署名・有効期限を検証し、Lambda 内では JWT claims の `sub`（Cognito が発行する一意のユーザー識別子）を `userId` として使用する。API エンドポイントは `/me/...` 形式を採用し、URL パスに userId を含めないため、他ユーザーのデータへの横アクセスは構造上発生しない。
+
 | ID      | 要件                                                                                           |
 | ------- | ---------------------------------------------------------------------------------------------- |
 | FR-01-1 | ユーザーがメールアドレスとパスワードで新規アカウントを登録できる                               |
@@ -195,8 +197,8 @@
 | FR-08-1 | Action_TicketをDoneにしたとき、goalTypeとactionLevelに応じてEffort_Pointを即時付与する                                                 |
 | FR-08-2 | Effort_Point付与ルール: primary/normal=10pt、primary/minimal=5pt、pivot/normal=7pt、pivot/minimal=3pt                                  |
 | FR-08-3 | Effort_Point付与時にPersona_Messageトーンで「今日も何かできたね」という肯定的メッセージとともにポイントをアプリ内に表示する            |
-| FR-08-4 | 1日の終わりの集計時刻をユーザーが0〜23時の整数時刻（1時間単位）で設定できる（デフォルト: 0時）                                         |
-| FR-08-5 | 設定された集計時刻にその日の累計Effort_Pointをサマリー表示する                                                                         |
+| FR-08-4 | 1日の終わりの集計時刻は毎日0時（24時）で固定とする（ユーザー任意設定不可）                                                             |
+| FR-08-5 | 毎日0時にその日の累計Effort_Pointをサマリー表示する（次回アプリ起動時にホーム画面に表示）                                              |
 | FR-08-6 | 累計Effort_Pointおよび週間・月間の推移をグラフで表示する                                                                               |
 | FR-08-7 | 累計Effort_Pointが100の倍数に達したとき、特別な達成メッセージとバッジを表示する                                                        |
 | FR-08-8 | その日に一切の行動が記録されなかった場合、Effort_Pointを付与せず「明日また何かできるよ」という励ましメッセージのみをアプリ内に表示する |
@@ -275,9 +277,9 @@
 | FR-13-1 | Recommendationの4択応答時に行動内容・対象Goal・生成日時を含むAction_TicketをOpen（未完了）ステータスで生成する                                                 |
 | FR-13-2 | アプリ内のAction_Ticket一覧からいつでも任意のチケットをDone（完了）に自己申告できる機能を提供する                                                              |
 | FR-13-3 | Action_TicketをDoneにしたとき、完了日時を記録しAction_Logに反映する                                                                                            |
-| FR-13-4 | 1日の終わり（集計タイミング）にOpenのまま残っているAction_Ticketを自動破棄する                                                                                 |
-| FR-13-5 | Action_Ticket自動破棄時にPersona_Messageトーンで「〇〇はできなかったけど、でも△△ができたから全然トータルOKじゃん！」という肯定的メッセージをアプリ内に表示する |
-| FR-13-6 | その日にDone済みのAction_Ticketが1件もない場合、破棄メッセージは「今日はできなかったけど、明日また何かできるよ」とする                                         |
+| FR-13-4 | 毎日0時にOpenのまま残っているAction_Ticketを自動破棄する                                                                                                       |
+| FR-13-5 | Action_Ticket自動破棄後の破棄メッセージは次回アプリ起動時にホーム画面の上部バナー（または全画面ダイアログ）に表示する。内容はPersona_Messageトーンで「〇〇はできなかったけど、でも△△ができたから全然トータルOKじゃん！」のような肯定的メッセージとする |
+| FR-13-6 | その日にDone済みのAction_Ticketが1件もない場合、破棄メッセージは「今日はできなかったけど、明日また何かできるよ」とし、同じくホーム画面に表示する               |
 | FR-13-7 | 破棄されたAction_Ticketの履歴（破棄日時・行動内容）をユーザーが閲覧できる形で保持する                                                                          |
 | FR-13-8 | ホーム画面にOpen状態のAction_Ticket一覧を表示し、いつでも完了申告できるUIを提供する                                                                            |
 
@@ -365,5 +367,6 @@
 | Action_Log           | ユーザーが実際に行った行動の記録                                                                                              |
 | Similar_User_Data    | 類似プロフィールを持つ他ユーザーの匿名化された行動データ（v2以降）                                                            |
 | Future_Self_Model    | Similar_User_Dataを基に構築した「未来の自分」モデル（v1: モックデータ）                                                       |
-| Milestone            | 累計Effort_Pointが100の倍数に達したときに発生する達成イベント。特別な達成メッセージとバッジ表示をトリガーする（FR-08-7）      |
+| Milestone（マイルストーン） | 累計Effort_Pointが100の倍数に達したときに発生する達成イベント。特別な達成メッセージとバッジ表示をトリガーする（FR-08-7）      |
 | Action_Ticket        | Recommendationへの応答時に生成される行動タスク（Open/Done）。content フィールドに具体的なアクションステップ（行動手順）を含む |
+| ActionStep           | Recommendation に含まれる具体的な行動手順。Action_Ticketの content の元となる（例: Recommendation「散歩する」に対して「靴を履く → 玄関を出る → 5分歩く」）。RecommendationScreensで表示され、ユーザーが内容を確認した上で Action_Ticket が生成される |

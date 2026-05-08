@@ -60,6 +60,6 @@
 ## Current Status
 
 - **Lifecycle Phase**: INCEPTION
-- **Current Stage**: Workflow Planning Complete
-- **Next Stage**: Application Design
-- **Status**: ユーザー承認待ち
+- **Current Stage**: Application Design（指摘事項対応・修正完了）
+- **Next Stage**: Application Design 承認後 → Units Generation
+- **Status**: ユーザー最終承認待ち

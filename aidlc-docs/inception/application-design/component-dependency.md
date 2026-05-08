@@ -8,52 +8,56 @@
 
 ## 目次
 
-- [コンポーネント依存関係 — だが、それでいい（DagaSoreDeIi\_App）](#コンポーネント依存関係--だがそれでいいdagasoredeii_app)
-  - [概要](#概要)
-  - [目次](#目次)
-  - [依存関係マトリクス](#依存関係マトリクス)
-  - [データフロー図](#データフロー図)
-    - [1. 初期起動フロー（新規ユーザー）](#1-初期起動フロー新規ユーザー)
-    - [2. アプリ起動フロー（既存ユーザー）](#2-アプリ起動フロー既存ユーザー)
-    - [3. Recommendation生成フロー](#3-recommendation生成フロー)
-    - [4. Done申告フロー](#4-done申告フロー)
-    - [5. 日次集計・自動破棄フロー](#5-日次集計自動破棄フロー)
-    - [6. 週次バッチフロー](#6-週次バッチフロー)
-    - [7. Stats・サマリー表示フロー](#7-statsサマリー表示フロー)
-    - [8. アカウント削除フロー](#8-アカウント削除フロー)
-  - [通信パターン](#通信パターン)
-  - [循環依存の排除](#循環依存の排除)
+- [概要](#概要)
+- [目次](#目次)
+- [依存関係マトリクス](#依存関係マトリクス)
+- [データフロー図](#データフロー図)
+  - [1. 初期起動フロー（新規ユーザー）](#1-初期起動フロー新規ユーザー)
+  - [2. アプリ起動フロー（既存ユーザー）](#2-アプリ起動フロー既存ユーザー)
+  - [3. Recommendation生成フロー](#3-recommendation生成フロー)
+  - [4. Done申告フロー](#4-done申告フロー)
+  - [5. 日次集計・自動破棄フロー](#5-日次集計自動破棄フロー)
+  - [6. 週次バッチフロー](#6-週次バッチフロー)
+  - [7. Stats・サマリー表示フロー](#7-statsサマリー表示フロー)
+  - [8. アカウント削除フロー](#8-アカウント削除フロー)
+  - [9. Pivot\_Goal 昇格提案フロー（FR-07-2）](#9-pivot_goal-昇格提案フローfr-07-2)
+  - [10. 破棄メッセージ表示フロー（FR-13-5）](#10-破棄メッセージ表示フローfr-13-5)
+- [通信パターン](#通信パターン)
+- [循環依存の排除](#循環依存の排除)
 
 ---
 
 ## 依存関係マトリクス
 
-| コンポーネント           | 依存先                                                                                   |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| AuthScreens              | AuthService(FE), NavigationComponent                                                     |
-| OnboardingScreens        | useProfileService, useGoalService, NavigationComponent                                   |
-| HomeScreen               | useTriggerService, useActionTicketService, useEffortPointService, authStore, ticketStore |
-| RecommendationScreens    | useRecommendationService, useActionTicketService, recommendationStore, ticketStore       |
-| ActionTicketScreens      | useActionTicketService, ticketStore                                                      |
-| ProfileScreens           | useProfileService, useGoalService                                                        |
-| StatsScreens             | useEffortPointService                                                                    |
-| useAuthService           | AuthService(FE), APIClient, authStore                                                    |
-| useProfileService        | APIClient                                                                                |
-| useGoalService           | APIClient                                                                                |
-| useTriggerService        | APIClient, ticketStore                                                                   |
-| useRecommendationService | APIClient, recommendationStore, ticketStore                                              |
-| useActionTicketService   | APIClient, ticketStore                                                                   |
-| useEffortPointService    | APIClient                                                                                |
-| AuthService(FE)          | AWS Amplify Auth, CognitoUserPool                                                        |
-| APIClient                | AuthService(FE)（JWTトークン取得）                                                       |
-| AccountLambda            | UserDB, ActionLogDB, CognitoUserPool（SimilarUserDBは匿名化済みのため削除対象外）        |
-| UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                               |
-| ActionTicketLambda       | ActionLogDB, BackendErrorHandler                                                         |
-| RecommendationLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                                  |
-| DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                                         |
-| StatsLambda              | ActionLogDB, BackendErrorHandler                                                         |
-| LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                                  |
-| EventBridgeScheduler     | LearningEngineLambda, DailyAggregationLambda                                             |
+| コンポーネント           | 依存先                                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Amplify UI Authenticator | AWS Cognito User Pool（外部ライブラリがカプセル化）                                                         |
+| OnboardingScreens        | ProfileService, GoalService, NavigationComponent                                                            |
+| HomeScreen               | TriggerService, ActionTicketService, StatsService, GoalService（昇格候補）, authStore, ticketStore          |
+| RecommendationScreens    | RecommendationService, ActionTicketService, recommendationStore, ticketStore                                |
+| ActionTicketScreens      | ActionTicketService, ticketStore                                                                            |
+| ProfileScreens           | ProfileService, GoalService, AccountService（アカウント削除）, Amplify `useAuthenticator`（サインアウト）   |
+| StatsScreens             | StatsService                                                                                                |
+| AccountService           | APIClient                                                                                                   |
+| ProfileService           | APIClient                                                                                                   |
+| GoalService              | APIClient                                                                                                   |
+| TriggerService           | APIClient, ActionTicketService（内部で getOpenTickets 参照）, ticketStore                                  |
+| RecommendationService    | APIClient, recommendationStore, ticketStore                                                                 |
+| ActionTicketService      | APIClient, ticketStore                                                                                      |
+| StatsService             | APIClient                                                                                                   |
+| APIClient                | AWS Amplify Auth（`fetchAuthSession` による JWT 取得）                                                      |
+| AccountLambda            | UserDB, ActionLogDB, CognitoUserPool（SimilarUserDBは匿名化済みのため削除対象外）                           |
+| UserLambda               | UserDB, BedrockClient, BackendErrorHandler                                                                  |
+| ActionTicketLambda       | ActionLogDB, BackendErrorHandler                                                                            |
+| RecommendationLambda     | UserDB, ActionLogDB, SimilarUserDB, BedrockClient, BackendErrorHandler                                      |
+| DailyAggregationLambda   | ActionLogDB, BackendErrorHandler                                                                            |
+| StatsLambda              | ActionLogDB, BackendErrorHandler                                                                            |
+| LearningEngineLambda     | UserDB, ActionLogDB, BedrockClient, BackendErrorHandler                                                     |
+| EventBridgeScheduler     | DailyAggregationLambda（毎日0時）, LearningEngineLambda（毎週月曜0時）                                      |
+
+**Note（Zustandストア）**: マトリクスでは Application Design で確定した3ストア（`authStore` / `ticketStore` / `recommendationStore`）のみを記載する。`profileStore` / `goalStore` / `effortPointStore` は Construction Phase で Zustand か React Query キャッシュかを決定するため未記載。
+
+**Note（認証）**: サインアップ・サインイン・パスワードリセット・メール確認は Amplify UI Authenticator が一括提供する。各画面は `useAuthenticator` フックで認証情報にアクセスできる。
 
 ---
 
@@ -64,82 +68,87 @@
 ```mermaid
 sequenceDiagram
     actor User
-    participant AuthScreens
-    participant AuthService
+    participant App
+    participant Authenticator as Amplify UI Authenticator
     participant Cognito as CognitoUserPool
     participant OnboardingScreens
     participant UserLambda
     participant Bedrock as BedrockClient
     participant UserDB
 
-    User->>AuthScreens: 新規登録
-    AuthScreens->>AuthService: signUp()
-    AuthService->>Cognito: アカウント作成
-    Cognito-->>AuthScreens: 確認メール送信
-    User->>AuthScreens: 確認コード入力
-    AuthScreens->>AuthService: confirmSignUp()
-    AuthService->>Cognito: メール確認
-    AuthScreens->>AuthService: signIn()
-    AuthService->>Cognito: サインイン
-    Cognito-->>AuthService: JWTトークン
-    AuthService-->>AuthScreens: 認証完了 → authStore更新
+    User->>App: アプリ起動
+    App->>Authenticator: 未認証セッション検出 → 認証UI表示
+    User->>Authenticator: メール・パスワードでサインアップ
+    Authenticator->>Cognito: signUp()
+    Cognito-->>Authenticator: 確認メール送信
+    User->>Authenticator: 確認コード入力
+    Authenticator->>Cognito: confirmSignUp()
+    Authenticator->>Cognito: signIn()
+    Cognito-->>Authenticator: JWTトークン発行
+    Authenticator-->>App: 認証完了 → 子コンポーネント描画
+    Note over App: authStore が useAuthenticator からユーザー情報を同期
 
-    AuthScreens->>OnboardingScreens: オンボーディングへ遷移
-    OnboardingScreens->>UserLambda: GET /users/{userId}/profiles/suggestions
+    App->>OnboardingScreens: オンボーディングへ遷移
+    OnboardingScreens->>UserLambda: GET /me/profile/suggestions
     UserLambda->>Bedrock: AIサジェスト生成
     Bedrock-->>UserLambda: サジェスト候補
     UserLambda-->>OnboardingScreens: サジェスト候補
 
-    OnboardingScreens->>UserLambda: PUT /users/{userId}/profiles
+    OnboardingScreens->>UserLambda: PUT /me/profile
     UserLambda->>UserDB: Profile書き込み
     UserDB-->>UserLambda: OK
     UserLambda-->>OnboardingScreens: Profile
 
-    OnboardingScreens->>UserLambda: POST /users/{userId}/goals/generate
+    OnboardingScreens->>UserLambda: POST /me/goals/generate
     UserLambda->>Bedrock: Pivot_Goal自動生成
     Bedrock-->>UserLambda: Pivot_Goal候補
     UserLambda->>UserDB: Goal書き込み
     UserLambda-->>OnboardingScreens: Goal一覧
-    OnboardingScreens-->>User: MainTabへ遷移
+    OnboardingScreens-->>User: MainTab（HomeScreen）へ遷移
 ```
 
 ### 2. アプリ起動フロー（既存ユーザー）
+
+自動Triggerの実行主体は HomeScreen とする（`TriggerService.checkAutoTrigger` は HomeScreen 内で呼ばれる）。認証セッションの検証は Amplify UI Authenticator が透過的に実施する。
 
 ```mermaid
 sequenceDiagram
     actor User
     participant App
-    participant AuthService
+    participant Authenticator as Amplify UI Authenticator
     participant Cognito as CognitoUserPool
+    participant HomeScreen
     participant UserLambda
     participant UserDB
     participant ActionTicketLambda
     participant ActionLogDB
 
     User->>App: アプリ起動
-    App->>AuthService: getCurrentSession()
-    AuthService->>Cognito: セッション確認
+    App->>Authenticator: セッション確認
+    Authenticator->>Cognito: getCurrentSession()
     alt 未認証
-        Cognito-->>App: 未認証
-        App-->>User: AuthScreensへ遷移
+        Cognito-->>Authenticator: 未認証
+        Authenticator-->>User: 認証UI（サインイン画面）を表示
     else 認証済み
-        Cognito-->>AuthService: JWTトークン
-        AuthService-->>App: authStore更新
-        App->>UserLambda: GET /users/{userId}/profiles
+        Cognito-->>Authenticator: JWTトークン
+        Authenticator-->>App: 認証済み → 子コンポーネント描画
+        Note over App: authStore が useAuthenticator からユーザー情報を同期
+        App->>UserLambda: GET /me/profile
         UserLambda->>UserDB: Profile取得
         UserDB-->>UserLambda: Profile
         UserLambda-->>App: Profile
         alt プロフィール未完了
             App-->>User: OnboardingScreensへ遷移
         else 完了
-            App->>ActionTicketLambda: GET /tickets/{userId}
+            App-->>HomeScreen: HomeScreenマウント
+            HomeScreen->>ActionTicketLambda: GET /me/tickets
             ActionTicketLambda->>ActionLogDB: Open Ticket取得
             ActionLogDB-->>ActionTicketLambda: Ticket一覧
-            ActionTicketLambda-->>App: Ticket一覧
+            ActionTicketLambda-->>HomeScreen: Ticket一覧
             alt Open Ticket 0件
-                App-->>User: 自動Trigger → Recommendationフローへ
+                HomeScreen-->>User: 自動Trigger発火 → Recommendationフローへ
             else Open Ticketあり
-                App-->>User: HomeScreenへ遷移
+                HomeScreen-->>User: HomeScreen通常表示
             end
         end
     end
@@ -154,20 +163,29 @@ sequenceDiagram
     participant RecommendationLambda
     participant UserDB
     participant ActionLogDB
+    participant SimilarUserDB
     participant Bedrock as BedrockClient
     participant RecommendationScreens
 
     User->>HomeScreen: Triggerボタンタップ（または自動Trigger）
-    HomeScreen->>RecommendationLambda: POST /recommendations/{userId}
-    RecommendationLambda->>UserDB: Profile・Goal・BehaviorModel取得
+    HomeScreen->>RecommendationLambda: POST /me/recommendations
+    RecommendationLambda->>UserDB: Profile・Goal・BehaviorModel・FutureSelfModel取得
     UserDB-->>RecommendationLambda: ユーザーデータ
     RecommendationLambda->>ActionLogDB: Action_Log件数確認・直近ログ取得
     ActionLogDB-->>RecommendationLambda: Action_Log
+    alt v1（モック）
+        RecommendationLambda->>SimilarUserDB: モックデータ読み取り（v1）
+        SimilarUserDB-->>RecommendationLambda: モック SimilarUserData
+    end
     RecommendationLambda->>Bedrock: Recommendation生成
     Bedrock-->>RecommendationLambda: Recommendation（Persona_Messageトーン）
     RecommendationLambda-->>HomeScreen: Recommendation
     HomeScreen->>RecommendationScreens: recommendationStore更新 → 画面遷移
-    RecommendationScreens-->>User: Recommendation表示
+    RecommendationScreens->>RecommendationLambda: POST /me/recommendations/action-steps
+    RecommendationLambda->>Bedrock: ActionStep生成
+    Bedrock-->>RecommendationLambda: ActionStep[]
+    RecommendationLambda-->>RecommendationScreens: ActionStep[]
+    RecommendationScreens-->>User: Recommendation + ActionStep表示
 ```
 
 ### 4. Done申告フロー
@@ -180,14 +198,14 @@ sequenceDiagram
     participant ActionLogDB
 
     User->>Screen: Done申告
-    Screen->>ActionTicketLambda: PUT /tickets/{userId}/{ticketId}/complete
+    Screen->>ActionTicketLambda: PUT /me/tickets/{ticketId}/complete
     ActionTicketLambda->>ActionLogDB: ActionLogEntry書き込み（リアルタイム）
     ActionTicketLambda->>ActionTicketLambda: calculatePoints()
     ActionTicketLambda->>ActionLogDB: EffortPointRecord書き込み
     ActionTicketLambda->>ActionTicketLambda: checkMilestone()
     ActionLogDB-->>ActionTicketLambda: OK
     ActionTicketLambda-->>Screen: CompleteTicketResult { ticket, pointsAwarded, totalPoints, milestoneReached }
-    Screen->>Screen: ticketStore・effortPointStore更新
+    Screen->>Screen: ticketStore更新（React Queryキャッシュ無効化）
     Screen-->>User: Persona_Message表示（ポイント + 達成メッセージ）
 ```
 
@@ -199,12 +217,15 @@ sequenceDiagram
     participant DailyAggregationLambda
     participant ActionLogDB
 
-    EventBridge->>DailyAggregationLambda: 集計時刻トリガー
-    DailyAggregationLambda->>ActionLogDB: Open Ticketを破棄ステータスに更新
-    ActionLogDB-->>DailyAggregationLambda: ExpireTicketsResult（破棄件数・Done件数）
-    DailyAggregationLambda->>ActionLogDB: DailySummary書き込み・集計
+    EventBridge->>DailyAggregationLambda: 毎日0時トリガー
+    DailyAggregationLambda->>ActionLogDB: 全ユーザーの Open Ticket を破棄ステータスに更新
+    ActionLogDB-->>DailyAggregationLambda: ExpireTicketsResult（破棄件数）
+    DailyAggregationLambda->>ActionLogDB: ActionLogEntry(actionType=expire)を書き込み
+    DailyAggregationLambda->>DailyAggregationLambda: runDailyAggregation() で DailySummary 集計
+    DailyAggregationLambda->>DailyAggregationLambda: buildDiscardMessage() で破棄メッセージ生成
+    DailyAggregationLambda->>ActionLogDB: DailySummary（discardMessage含む）書き込み
     ActionLogDB-->>DailyAggregationLambda: OK
-    Note over DailyAggregationLambda: 破棄メッセージは次回アプリ起動時にFEが表示
+    Note over DailyAggregationLambda: UserDB は参照しない（日次バッチに必要なデータはすべてActionLogDB内に完結）
 ```
 
 ### 6. 週次バッチフロー
@@ -225,8 +246,8 @@ sequenceDiagram
     LearningEngineLambda->>Bedrock: 行動モデル構築・Future_Self_Model更新
     Bedrock-->>LearningEngineLambda: BehaviorModel・FutureSelfModel
     LearningEngineLambda->>UserDB: BehaviorModel・FutureSelfModel書き込み
-    LearningEngineLambda->>UserDB: Profile.behaviorTrends更新
-    LearningEngineLambda->>UserDB: Pivot_Goal昇格候補フラグ更新
+    LearningEngineLambda->>UserDB: Profile.behaviorTrends / strengthPatterns 更新
+    LearningEngineLambda->>UserDB: checkPivotGoalPromotion() で Goal.promotionCandidate フラグ更新
     UserDB-->>LearningEngineLambda: OK
 ```
 
@@ -240,26 +261,26 @@ sequenceDiagram
     participant StatsLambda
     participant ActionLogDB
 
-    Note over HomeScreen: Effort_Pointサマリー表示（ホーム画面）
-    HomeScreen->>StatsLambda: GET /stats/{userId}/total-points
+    Note over HomeScreen: HomeScreen マウント時
+    HomeScreen->>StatsLambda: GET /me/stats/total-points
     StatsLambda->>ActionLogDB: 累計ポイント取得
     ActionLogDB-->>StatsLambda: totalPoints
     StatsLambda-->>HomeScreen: totalPoints
     HomeScreen-->>User: Effort_Pointサマリー表示
 
-    Note over StatsScreens: 統計グラフ表示（Stats画面）
+    Note over StatsScreens: Stats画面を開いた時
     User->>StatsScreens: Stats画面を開く
-    StatsScreens->>StatsLambda: GET /stats/{userId}/daily
+    StatsScreens->>StatsLambda: GET /me/stats/daily
     StatsLambda->>ActionLogDB: 日次サマリー取得
     ActionLogDB-->>StatsLambda: DailySummary
     StatsLambda-->>StatsScreens: DailySummary
 
-    StatsScreens->>StatsLambda: GET /stats/{userId}/weekly
+    StatsScreens->>StatsLambda: GET /me/stats/weekly
     StatsLambda->>ActionLogDB: 週間サマリー取得
     ActionLogDB-->>StatsLambda: WeeklySummary
     StatsLambda-->>StatsScreens: WeeklySummary
 
-    StatsScreens->>StatsLambda: GET /stats/{userId}/monthly
+    StatsScreens->>StatsLambda: GET /me/stats/monthly
     StatsLambda->>ActionLogDB: 月間サマリー取得
     ActionLogDB-->>StatsLambda: MonthlySummary
     StatsLambda-->>StatsScreens: MonthlySummary
@@ -273,28 +294,85 @@ sequenceDiagram
 sequenceDiagram
     actor User
     participant ProfileScreens
+    participant AccountService
     participant AccountLambda
     participant UserDB
     participant ActionLogDB
     participant Cognito as CognitoUserPool
+    participant Authenticator as Amplify UI Authenticator
 
     User->>ProfileScreens: アカウント削除ボタン
     ProfileScreens-->>User: 確認ダイアログ
     User->>ProfileScreens: 削除確認
-    ProfileScreens->>AccountLambda: DELETE /users/{userId}（JWTトークン付き）
-    AccountLambda->>AccountLambda: JWT sub と path userId の一致確認
-    alt 不一致（他ユーザーのデータへのアクセス）
-        AccountLambda-->>ProfileScreens: 403 Forbidden
-    else 一致
-        AccountLambda->>UserDB: 全ユーザーデータ削除
-        UserDB-->>AccountLambda: OK
-        AccountLambda->>ActionLogDB: 全行動ログ削除
-        ActionLogDB-->>AccountLambda: OK
-        AccountLambda->>Cognito: ユーザー削除
-        Cognito-->>AccountLambda: OK
-        AccountLambda-->>ProfileScreens: DeleteAccountResult
-        ProfileScreens->>ProfileScreens: authStore.clearAuth()
-        ProfileScreens-->>User: AuthScreens（ログイン画面）へ遷移
+    ProfileScreens->>AccountService: deleteAccount()
+    AccountService->>AccountLambda: DELETE /me（JWTトークン付き）
+    Note over AccountLambda: API Gateway の Cognito Authorizer が JWT 検証を実施済み
+    AccountLambda->>AccountLambda: getUserIdFromToken(event) で JWT claims の sub を取得 → userId
+    AccountLambda->>UserDB: 全ユーザーデータ削除（User/Profile/ProfileUpdateHistory/Goal/TriggerSettings/FutureSelfModel/BehaviorModel）
+    UserDB-->>AccountLambda: OK
+    AccountLambda->>ActionLogDB: 全行動ログ削除（ActionLogEntry/ActionTicket/EffortPointRecord/DailySummary/Milestone）
+    ActionLogDB-->>AccountLambda: OK
+    AccountLambda->>Cognito: ユーザー削除
+    Cognito-->>AccountLambda: OK
+    Note over AccountLambda: SimilarUserDB は匿名化済みのため削除対象外
+    AccountLambda-->>AccountService: DeleteAccountResult
+    AccountService->>Cognito: Amplify Auth.signOut() でローカルセッションクリア
+    AccountService->>AccountService: authStore.clearAuth()
+    Note over Authenticator: useAuthenticator が未認証状態を検出
+    Authenticator-->>User: サインイン画面を自動再表示
+```
+
+### 9. Pivot_Goal 昇格提案フロー（FR-07-2）
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant HomeScreen
+    participant UserLambda
+    participant UserDB
+
+    Note over HomeScreen: HomeScreen マウント時（既存ユーザーのアプリ起動フロー内で並行実行）
+    HomeScreen->>UserLambda: GET /me/goals/promotion-candidates
+    UserLambda->>UserDB: Goal.promotionCandidate === true を取得
+    UserDB-->>UserLambda: PromotionCandidate[]
+    UserLambda-->>HomeScreen: PromotionCandidate[]
+    alt 候補あり
+        HomeScreen-->>User: 昇格提案バナーを表示<br>「お前、〇〇を続けられてるよね。これを新しい目標にしてみる？」
+        User->>HomeScreen: 「はい」
+        HomeScreen->>UserLambda: POST /me/goals/{candidateGoalId}/promote
+        UserLambda->>UserDB: Goal.isPrimary=true / 旧Primary_Goal を Pivot に変更
+        UserLambda-->>HomeScreen: 昇格後の Goal 一覧
+        HomeScreen-->>User: バナー消去 → Goal表示更新
+    else 候補なし
+        HomeScreen-->>User: バナー非表示（通常の HomeScreen 表示）
+    end
+```
+
+### 10. 破棄メッセージ表示フロー（FR-13-5）
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant HomeScreen
+    participant StatsLambda
+    participant ActionLogDB
+    participant AsyncStorage
+
+    Note over HomeScreen: HomeScreen マウント時
+    HomeScreen->>AsyncStorage: 今日の破棄メッセージ既読フラグを取得
+    AsyncStorage-->>HomeScreen: isRead
+    alt 未読
+        HomeScreen->>StatsLambda: GET /me/stats/latest-discard-message
+        StatsLambda->>ActionLogDB: 直近の DailySummary.discardMessage 取得
+        ActionLogDB-->>StatsLambda: DiscardMessage
+        StatsLambda-->>HomeScreen: DiscardMessage
+        alt メッセージあり
+            HomeScreen-->>User: 上部バナー/ダイアログで破棄メッセージ表示<br>「〇〇はできなかったけど、でも△△ができたから全然トータルOKじゃん！」
+            User->>HomeScreen: 確認
+            HomeScreen->>AsyncStorage: 既読フラグ書き込み
+        end
+    else 既読
+        Note over HomeScreen: バナー非表示
     end
 ```
 
@@ -304,16 +382,24 @@ sequenceDiagram
 
 | パターン                     | 使用箇所                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------- |
-| **同期REST（HTTPS）**        | Frontend → API Gateway → Lambda（全通常API）                               |
+| **同期REST（HTTPS）**        | Frontend → API Gateway → Lambda（全通常API）。全てAPIClient経由            |
+| **Amplify Auth直接（例外）** | Frontend → CognitoUserPool（サインアップ・サインイン・パスワードリセット）。**これは原則の例外として許容**。アカウント削除時のDynamoDB/Cognito削除はAPIClient経由でAccountLambdaを叩く |
 | **Lambda内部呼び出し**       | なし                                                                       |
-| **EventBridge スケジュール** | 週次バッチ（LearningEngine）・日次バッチ（DailyAggregation）               |
-| **Amplify Auth直接**         | Frontend → CognitoUserPool（サインアップ・サインイン・パスワードリセット） |
+| **EventBridge スケジュール** | 日次バッチ（DailyAggregationLambda 毎日0時）・週次バッチ（LearningEngineLambda 毎週月曜0時） |
+
+## 認可方針
+
+- **API Gateway の Cognito Authorizer** が JWT の署名・有効期限検証を行う
+- Lambda は **JWT claims の `sub`** を認証済みの `userId` として使用する（`event.requestContext.authorizer.claims.sub`）
+- API エンドポイントは **`/me/...`** 形式を採用し、URL path に userId を含めない
+- path userId と JWT sub の一致確認（認可チェック）は構造上不要（path userId 自体が存在しないため）
+- バッチ Lambda（DailyAggregationLambda / LearningEngineLambda）は API Gateway を通さないため認可対象外（EventBridge トリガー）
 
 ---
 
 ## 循環依存の排除
 
-- Frontend サービス層はすべて APIClient を経由してバックエンドと通信する（直接Lambda呼び出しなし）
+- Frontend サービス層はすべて APIClient を経由してバックエンドと通信する（直接Lambda呼び出しなし）。ただし認証系（Cognito）のみ Amplify Auth による直接通信を原則の例外として許容する
 - Lambda間の直接呼び出しはなし
 - EventBridgeトリガーのバッチ処理（DailyAggregationLambda・LearningEngineLambda）とAPI処理（その他Lambda）は完全に分離
 - LearningEngineLambda は完全に非同期バッチ処理であり、他のLambdaから呼び出されない

@@ -33,7 +33,7 @@ flowchart TD
         WD["Workspace Detection\n✅ COMPLETED"]
         RA["Requirements Analysis\n✅ COMPLETED"]
         US["User Stories\n⏭ SKIP"]
-        WP["Workflow Planning\n🔄 IN PROGRESS"]
+        WP["Workflow Planning\n✅ COMPLETED"]
         AD["Application Design\n▶ EXECUTE"]
         UG["Units Generation\n▶ EXECUTE"]
     end
@@ -99,7 +99,7 @@ linkStyle default stroke:#333,stroke-width:2px
 - [x] Requirements Analysis — COMPLETED
 - [ ] User Stories — **SKIP**
   - **理由**: 本アプリはユーザーペルソナが単一（日本語ユーザー）で、要件ドキュメントに機能要件・非機能要件が詳細に記載済み。User Storiesが追加する価値は低い。
-- [x] Workflow Planning — IN PROGRESS（本ドキュメント）
+- [x] Workflow Planning — COMPLETED
 - [ ] Application Design — **EXECUTE**
   - **理由**: React Native画面コンポーネント・Lambda関数・DynamoDBテーブル・Bedrock連携など、多数の新規コンポーネントとサービス層の設計が必要。
 - [ ] Units Generation — **EXECUTE**

@@ -8,6 +8,7 @@
 - [x] 4. コンポーネント依存関係設計（component-dependency.md）
 - [x] 5. 統合設計ドキュメント（application-design.md）
 - [x] 6. 設計の完全性・一貫性検証
+- [x] 7. 指摘事項.md に基づく修正対応（[application-design-revision-plan.md](./application-design-revision-plan.md)）
 
 ---
 
