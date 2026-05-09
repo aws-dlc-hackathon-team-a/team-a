@@ -40,8 +40,8 @@
 - [x] Requirements Analysis - COMPLETED (2026-05-04T00:15:00Z)
 - [x] User Stories - SKIPPED（単一ペルソナ・要件詳細記載済みのため）
 - [x] Workflow Planning - COMPLETED (2026-05-05T00:05:00Z)
-- [ ] Application Design - EXECUTE
-- [ ] Units Generation - EXECUTE
+- [x] Application Design - COMPLETED (2026-05-09T00:00:00Z)
+- [ ] Units Generation - REVIEW（Generation 完了・ユーザー承認待ち）
 
 ### 🟢 CONSTRUCTION PHASE（各ユニット毎に実行）
 
@@ -60,6 +60,6 @@
 ## Current Status
 
 - **Lifecycle Phase**: INCEPTION
-- **Current Stage**: Application Design（指摘事項対応・修正完了）
-- **Next Stage**: Application Design 承認後 → Units Generation
-- **Status**: ユーザー最終承認待ち
+- **Current Stage**: Units Generation（Generation 完了・最終承認待ち）
+- **Next Stage**: Units Generation 承認後 → CONSTRUCTION PHASE（各ユニット毎に Functional Design → NFR → Infrastructure Design → Test Planning → Code Generation）
+- **Status**: ユニット成果物 3 ファイル生成完了、ユーザー承認待ち

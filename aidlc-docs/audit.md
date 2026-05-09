@@ -362,3 +362,45 @@
 **Context**: INCEPTION - Application Design - ユーザー確認中
 
 ---
+
+---
+
+## Application Design - 最終承認
+
+**Timestamp**: 2026-05-09T00:00:00Z
+**User Input**: "最終承認します。Units Generationに進んで。"
+**AI Response**: Application Design の最終承認を受理。aidlc-state.md を Application Design COMPLETED、Units Generation Planning 開始に更新。Units Generation の Part 1（Planning）に進む。
+**Context**: INCEPTION - Application Design 承認完了 → Units Generation 開始
+
+---
+
+## Units Generation - Planning 開始
+
+**Timestamp**: 2026-05-09T00:01:00Z
+**User Input**: (承認後自動進行)
+**AI Response**: Units Generation Part 1（Planning）を開始。unit-of-work-plan.md を作成し、ユニット分解に必要な質問をユーザーに提示。
+**Context**: INCEPTION - Units Generation Planning フェーズ
+
+---
+
+## Units Generation - Planning 承認
+
+**Timestamp**: 2026-05-09T00:02:00Z
+**User Input**: "承認します。"
+**AI Response**: unit-of-work-plan.md の回答（Q1-E: 4ユニット構成、Q2-B: 並行開発、Q3-A: モノレポ、Q4-B: OpenAPI SSoT、Q5-A: バッチ独立、Q6-B: CDKスタック分割、Q7-A: OpenAPI、Q8-A: Bedrock抽象化、Q9-D: apps配下でbatch分離）を確定。Planning 完了。Generation フェーズで3ファイルを生成する。
+**Context**: INCEPTION - Units Generation Planning 完了 → Generation 開始
+
+---
+
+## Units Generation - 成果物生成完了
+
+**Timestamp**: 2026-05-09T00:03:00Z
+**User Input**: (承認後自動進行)
+**AI Response**: Generation フェーズで 3 ファイルを生成:
+- aidlc-docs/inception/application-design/unit-of-work.md（4ユニット定義、Greenfieldコード組織、OpenAPI SSoT、Bedrock抽象化方針）
+- aidlc-docs/inception/application-design/unit-of-work-dependency.md（ユニット間依存マトリクス、CDK Stack依存、通信契約 Contract A〜G）
+- aidlc-docs/inception/application-design/unit-of-work-story-map.md（FR/NFR/コンポーネントのユニット割り当て表、割り当て漏れチェック）
+Planning チェックリスト・aidlc-state.md を更新。ユーザー最終承認待ち。
+**Context**: INCEPTION - Units Generation Generation 完了
+
+---
