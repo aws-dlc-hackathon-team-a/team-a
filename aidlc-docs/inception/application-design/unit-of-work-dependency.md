@@ -24,17 +24,18 @@ Application Design の依存関係は [component-dependency.md](./component-depe
 
 | from \ to           | Mobile Frontend | Backend API | Batch | Infrastructure | packages/shared-types |
 | ------------------- | --------------- | ----------- | ----- | -------------- | --------------------- |
-| **Mobile Frontend** | —               | △（OpenAPI経由で型参照、実行時はAPI Gateway経由） | ✕ | ✕ | ○（OpenAPI由来の型を import） |
-| **Backend API**     | ✕               | —           | ✕（Lambda 間の直接呼び出し禁止） | ✕ | ○（OpenAPI由来の型を import） |
-| **Batch**           | ✕               | ✕（Lambda 間の直接呼び出し禁止） | —     | ✕ | ○（DynamoDBエンティティ型を import） |
-| **Infrastructure**  | △（Cognito 設定・デプロイ先として参照） | ○（BackendStackでLambda成果物を取り込み） | ○（BatchStackでLambda成果物を取り込み） | —  | ✕ |
+| **Mobile Frontend** | —               | △（OpenAPI経由で型参照、実行時はAPI Gateway経由） | ✕ | △（ビルド時に Cognito User Pool ID / API Gateway Endpoint 等の CDK Output を Amplify 設定に埋め込む） | ○（OpenAPI由来の型を import） |
+| **Backend API**     | ✕               | —           | ✕（Lambda 間の直接呼び出し禁止） | ✕（実行時はCDKが注入した環境変数を読むだけ） | ○（OpenAPI由来の型 + DBエンティティ型を import） |
+| **Batch**           | ✕               | ✕（Lambda 間の直接呼び出し禁止） | —     | ✕（実行時はCDKが注入した環境変数を読むだけ） | ○（DynamoDBエンティティ型を import） |
+| **Infrastructure**  | ✕（Mobileはストア配信のためCDKのデプロイ対象外） | ○（BackendStackでLambda成果物を取り込み） | ○（BatchStackでLambda成果物を取り込み） | —  | ✕ |
 | **packages/shared-types** | ✕        | ✕           | ✕     | ✕              | —                     |
 
 ### 備考
 
 - Mobile Frontend は Backend API に対して「実行時は API Gateway 経由の HTTPS 通信」「ビルド時は shared-types 経由の型共有」の 2 系統で依存する
+- Mobile Frontend は Infrastructure に対して「CDK が生成する Cognito User Pool ID / Client ID / API Gateway Endpoint などの値をビルド時に取り込む」形で間接的に依存する。Infrastructure 側は Mobile のビルド成果物（IPA/APK）を扱わない（ストア配信は別経路）
 - Backend API と Batch は同一リポジトリ内にあるが、コードを直接 import してはならない（Lambda 間の直接呼び出し禁止）
-- Infrastructure は全てのアプリケーションユニットの成果物を取り込むが、逆方向の依存はない
+- Infrastructure は Backend / Batch の Lambda デプロイパッケージを取り込むが、逆方向（Lambda → CDK コード）の依存はない
 - packages/shared-types は他ユニットからのみ参照され、他ユニットに依存しない（葉ノード）
 
 ---
@@ -148,10 +149,11 @@ Batch がアクセスするのは UserDB と ActionLogDB のみ（SimilarUserDB 
 
 | 項目                   | 内容                                                                                                 |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
-| **トリガー**           | EventBridge Scheduler（`ScheduleExpression: cron(0 0 * * ? *)` など）                                |
+| **トリガー**           | EventBridge Scheduler（`ScheduleExpression: cron(...)`）                                             |
+| **タイムゾーン**       | 要件（FR-08-4・FR-13-4）で「毎日 0 時」固定が指定されているが、基準タイムゾーン（JST / UTC 等）は要件未定義。Construction Phase の Infrastructure Design で EventBridge Scheduler の `ScheduleExpressionTimezone` を明示的に設定して確定する |
 | **ペイロード**         | EventBridge デフォルトのスケジュールイベント（追加引数なし）                                       |
 | **スケジュール定義**   | Infrastructure Unit の BatchStack で CDK コードとして定義                                            |
-| **対象 Lambda**        | DailyAggregationLambda（毎日 0 時 JST）、LearningEngineLambda（毎週月曜 0 時 JST）                   |
+| **対象 Lambda**        | DailyAggregationLambda（毎日 0 時）、LearningEngineLambda（毎週月曜 0 時）                           |
 
 ### Contract F: Backend API / Batch ↔ Amazon Bedrock
 
@@ -267,6 +269,7 @@ flowchart TB
 
 - ユニット間で直接的なコード依存は `packages/shared-types` 経由のみ（単方向：shared-types は他ユニットに依存しない）
 - Mobile Frontend → Backend API は実行時のみ（HTTPS）、逆方向の呼び出しは不在
+- Mobile Frontend → Infrastructure はビルド時の設定値取り込みのみ（Cognito User Pool ID 等）、逆方向の依存はない（CDK は Mobile を扱わない）
 - Backend API ↔ Batch は直接呼び出し禁止。データの受け渡しは DynamoDB のみ（EventBridge によるスケジュール起動は外部トリガー扱い）
-- Infrastructure は全ユニットの成果物を参照するが、逆方向の依存は存在しない（IaC は単方向）
+- Infrastructure は Backend / Batch の Lambda デプロイパッケージを参照するが、逆方向の依存は存在しない（IaC は単方向）
 - CDK Stack 間は単方向（DbStack / BedrockAccessStack / FrontendStack → BackendStack / BatchStack）

@@ -34,7 +34,7 @@ Application Design の成果物は [application-design.md](./application-design.
 | 1 | **Mobile Frontend**     | React Native + TypeScript + Zustand + React Query + axios + Amplify UI | iOS IPA / Android APK（ストア配信）                                           | クライアントアプリ         |
 | 2 | **Backend API**         | Node.js + TypeScript + AWS SDK v3（Lambda + API Gateway）   | Lambda デプロイパッケージ群（AccountLambda / UserLambda / ActionTicketLambda / RecommendationLambda / StatsLambda） + API Gateway 定義 | サーバーレス API           |
 | 3 | **Batch**               | Node.js + TypeScript + AWS SDK v3（Lambda + EventBridge Scheduler） | Lambda デプロイパッケージ群（DailyAggregationLambda / LearningEngineLambda）+ EventBridge スケジュール | サーバーレスバッチ         |
-| 4 | **Infrastructure**      | AWS CDK + TypeScript                                         | 複数 CDK Stack（Frontend / Backend / Batch / 共通 DB）                          | Infrastructure-as-Code    |
+| 4 | **Infrastructure**      | AWS CDK + TypeScript                                         | 複数 CDK Stack（FrontendStack / BackendStack / BatchStack / DbStack / BedrockAccessStack の 5 Stack）                          | Infrastructure-as-Code    |
 
 ---
 
@@ -85,7 +85,7 @@ Application Design の成果物は [application-design.md](./application-design.
 | **責務**               | AWS リソース全体の IaC 定義。複数の CDK Stack に分割してユニットごとの依存を管理する                                                             |
 | **含まれる CDK Stack** | FrontendStack（Cognito User Pool）、BackendStack（API Gateway + API系Lambda + IAMロール）、BatchStack（EventBridge Scheduler + バッチLambda + IAM）、DbStack（DynamoDB テーブル 3 つ）、BedrockAccessStack（Bedrock 呼び出し権限の共通 IAM Policy） |
 | **ビルド成果物**       | CloudFormation テンプレート（CDK synth の結果）→ `cdk deploy` で AWS にデプロイ                                                                   |
-| **依存関係**           | DbStack は全ての下流 Stack（Backend / Batch）から参照される（Cross-Stack Reference）。BackendStack と BatchStack は並行デプロイ可能                |
+| **依存関係**           | DbStack / FrontendStack / BedrockAccessStack は最下層（依存なし）。BackendStack は DbStack + FrontendStack + BedrockAccessStack に依存、BatchStack は DbStack + BedrockAccessStack に依存する。詳細は [unit-of-work-dependency.md](./unit-of-work-dependency.md#cdk-stack-依存関係) 参照                |
 | **パッケージ**         | `apps/infra/`                                                                                                                                   |
 
 ---
@@ -135,11 +135,13 @@ Application Design の成果物は [application-design.md](./application-design.
 │       └── package.json
 │
 ├── packages/
-│   └── shared-types/        # OpenAPI から自動生成される共通型（Q4-B）
+│   └── shared-types/        # OpenAPI 自動生成型 + DynamoDB エンティティ型（Q4-B）
 │       ├── src/
-│       │   └── index.ts           # 生成された TypeScript 型定義
+│       │   ├── api.ts             # OpenAPI から自動生成される API Request/Response 型
+│       │   ├── db.ts              # DynamoDB エンティティの TypeScript 型（手書き）
+│       │   └── index.ts           # api.ts / db.ts の再エクスポート
 │       ├── scripts/
-│       │   └── generate.ts        # openapi-typescript などの自動生成スクリプト
+│       │   └── generate.ts        # openapi-typescript を使って api.ts を再生成するスクリプト
 │       └── package.json
 │
 ├── package.json             # pnpm workspace ルート
@@ -153,7 +155,7 @@ Application Design の成果物は [application-design.md](./application-design.
 - `apps/` 配下に 4 ユニット、`packages/shared-types/` に OpenAPI 自動生成型
 - `backend/` と `batch/` は独立ディレクトリとしてデプロイ単位を分離（Q9-D の意向）
 - 両者とも Lambda ランタイム共通のため `package.json` の devDependencies は似るが、アプリケーションコードと IAM ロール・EventBridge トリガー設定は明確に分離
-- `packages/shared-types/` のビルド成果物は Mobile Frontend と Backend API 両方から import される
+- `packages/shared-types/` のビルド成果物は Mobile Frontend（`api.ts` を参照）・Backend API（`api.ts` + `db.ts` を参照）・Batch（`db.ts` を参照）の 3 ユニットから import される
 - `apps/infra/lib/stacks/` に CDK Stack ごとに分割（Q6-B: ユニットごと + 共通 DB Stack + Bedrock アクセス共通 Stack）
 
 ---
@@ -206,22 +208,31 @@ Application Design の成果物は [application-design.md](./application-design.
 
 ## 共通型の扱い（OpenAPI SSoT）
 
-Q4-B に従い、OpenAPI を Single Source of Truth として使用する。
+Q4-B に従い、OpenAPI を Single Source of Truth として使用する。ただし、API 契約として露出する型と、DynamoDB エンティティの内部型は明確に分離する。
 
 1. **OpenAPI 定義ファイル**: `apps/backend/openapi/openapi.yaml` で API 契約を定義
-2. **TypeScript 型の自動生成**: `openapi-typescript` を使って `packages/shared-types/src/api.ts` に型を生成
-3. **DynamoDB エンティティ型**: OpenAPI の schema として定義（Response モデルと一致する場合）または別ファイルで TypeScript 直接定義（内部型のみ）
+2. **TypeScript 型の自動生成**: `openapi-typescript` を使って `packages/shared-types/src/api.ts` に API Request/Response 型を生成
+3. **DynamoDB エンティティ型**: `packages/shared-types/src/db.ts` に手動で TypeScript を定義（API Response と一致する場合はフィールドを import して再利用）
 4. **CI 検証**: OpenAPI 変更時に自動再生成、型の齟齬は CI で検出
 
-**OpenAPI に含める型（主なもの）**:
+**`packages/shared-types/src/api.ts`（OpenAPI 由来・API 契約）**:
 
-- Request/Response: Recommendation / PivotInput / CompleteTicketResult / DailySummary / WeeklySummary / MonthlySummary / DiscardMessage / PromotionCandidate 等
-- 共通ドメイン型: Profile / Goal / ActionTicket / ActionLogEntry / ActionStep / UserStats / Milestone / GoalType / ActionLevel / TicketStatus 等
+- Request モデル: `ProfileUpdate`、`CreateGoalInput`、`UpdateGoalInput`、`UpdatePriorityInput`、`RecommendationInput`、`PivotInput`、`RecommendationResponse`、`CreateTicketInput`、`ManualTriggerInput` 等
+- Response モデル: `Recommendation`、`CompleteTicketResult`（`personaMessage` を含む）、`DailySummary`、`WeeklySummary`、`MonthlySummary`、`DiscardMessage`、`PromotionCandidate`、`ExpiredTicket` 等
+- API 共通値型: `GoalType`、`ActionLevel`、`TicketStatus`、`ProfileField`、`ActionStep` 等
+- API に登場するドメイン型のサブセット: `Profile`、`Goal`、`ActionTicket`（API 応答として返るため API 契約に含める）
 
-**OpenAPI に含めない型**（Lambda 内部のみ）:
+**`packages/shared-types/src/db.ts`（DynamoDB エンティティ・内部型）**:
 
-- CompletionMessageContext / DiscardMessageContext（Bedrock プロンプト用、Backend API / Batch 内部で完結）
-- BehaviorModel の内部詳細構造（Construction Phase で決定）
+- DynamoDB 格納用型: `User`、`ProfileUpdateHistory`、`Goal`（promotionCandidate 等の内部フラグ含む）、`TriggerSettings`、`FutureSelfModel`、`BehaviorModel`、`BehaviorTrend`、`StrengthPattern`、`ActionLogEntry`、`EffortPointRecord`、`Milestone`、`UserStats`、`SimilarUserData` など
+- API で返さないフィールドや内部インデックス用キーは DB 型のみに含める
+
+**どちらにも含めない型**（Lambda 内部のみ）:
+
+- `CompletionMessageContext`、`DiscardMessageContext`（Bedrock プロンプト構築用、Backend API / Batch 内部で完結）
+- `BehaviorModel` の詳細内部構造（Construction Phase で決定）
+
+**方針**: API Response として返るドメイン型（例: `ActionTicket`、`Profile`、`Goal`）は `api.ts` 側で定義し、`db.ts` から import して DB 型を構成する。これにより API 契約が SSoT となり、DB 型は API 契約を超えた内部フィールドのみを追加する形になる。
 
 ---
 
