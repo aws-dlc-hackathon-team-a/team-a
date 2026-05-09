@@ -87,4 +87,18 @@
 
 全 9 項目のカテゴリ（requirements / components / component-dependency / component-methods / services / application-design / plans）について、指摘事項.md の全指摘を反映済み。
 
+### 追加修正（指摘事項.md 第2ラウンド）
+
+- [x] FR-06-4 を requirements.md から削除（「Recommendationを無視して別の行動」の意図曖昧）
+- [x] FR-07-1 を「行動完了時に Action_Log へリアルタイム記録、週次バッチで Profile 更新」に修正
+- [x] FR-02-6 を削除（FR-07-1 と重複）
+- [x] FR-08-3 の Persona_Message 生成元を ActionTicketLambda + Bedrock に確定（A方針）。`CompleteTicketResult.personaMessage`、`generateCompletionMessage` を追加
+- [x] FR-12-1 から「センシティブデータ」を削除、位置情報のみに絞る（NFR-03-2 も修正）
+- [x] NFR-02-1 を「HomeScreen 表示まで3秒以内、Recommendation 生成は非同期」に修正
+- [x] FR-11-3 学習データリセットを UserLambda の `POST /me/learning-data/reset` として設計。ProfileService に `resetLearningData` を追加、component-dependency に学習データリセットフロー図11を追加
+- [x] OnboardingScreens の責務に「データ収集同意画面」を追加（FR-09-5/FR-12-1）。User エンティティに `consent` フィールドを追加
+- [x] DailyAggregationLambda の `buildDiscardMessage` を Bedrock 呼び出しに変更し、FR-13-5/FR-13-6/FR-08-8 の3ケースを判別するコンテキスト型 `DiscardMessageContext` を追加
+- [x] StatsLambda の集計戦略を確定：累計は `UserStats` アトミックカウンター、週/月は DailySummary Query、日次は 1 GetItem or EffortPointRecord 集計
+- [x] `UserStats` エンティティを ActionLogDB に追加、ActionTicketLambda.completeTicket にアトミック更新ステップ追加、`checkMilestone` シグネチャを `(totalPoints, lastMilestoneValue)` に変更
+
 次のステップ: ユーザーへ完了報告 → Application Design の最終承認を依頼。

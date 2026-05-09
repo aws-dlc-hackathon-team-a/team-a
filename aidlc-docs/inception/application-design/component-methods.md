@@ -71,6 +71,9 @@ interface ProfileService {
   getProfileHistory(userId: string): Promise<ProfileUpdateHistory[]>;
   // field 単位のAIサジェスト（nickname/occupation/interests/currentConcerns 等）
   getProfileSuggestion(field: ProfileField, partialInput: string): Promise<string[]>;
+  // FR-11-3: 学習データリセット
+  // UserDB の BehaviorModel・FutureSelfModel、ActionLogDB の ActionLogEntry をリセットする
+  resetLearningData(): Promise<void>;
 }
 ```
 
@@ -254,6 +257,11 @@ async function updateGoalPriority(userId: string, goalId: string, priority: numb
 // Pivot_Goal 昇格候補（FR-07-2）
 async function getPromotionCandidates(userId: string): Promise<PromotionCandidate[]>;
 async function promoteCandidate(userId: string, candidateGoalId: string): Promise<Goal>;
+
+// 学習データリセット（FR-11-3）
+// UserDB の BehaviorModel・FutureSelfModel をリセットし、ActionLogDB の ActionLogEntry を全削除する
+// ActionTicket / EffortPointRecord / DailySummary / Milestone / UserStats は保持する（ユーザーの実績として残す）
+async function resetLearningData(userId: string): Promise<void>;
 ```
 
 ### ActionTicketLambda
@@ -267,8 +275,15 @@ async function completeTicket(userId: string, ticketId: string): Promise<Complet
 //   1. ActionLogDB に ActionLogEntry 書き込み（リアルタイム）
 //   2. calculatePoints() でポイント計算
 //   3. ActionLogDB に EffortPointRecord 書き込み
-//   4. checkMilestone() でマイルストーン判定
-//   5. CompleteTicketResult 返却
+//   4. ActionLogDB の UserStats を UpdateItem ADD で原子更新
+//      （totalPoints += points、totalCompletedTickets += 1）、更新後の値を取得
+//   5. checkMilestone(updatedTotalPoints, userStats.lastMilestoneValue) でマイルストーン判定
+//      — 到達時は UserStats.lastMilestoneValue を更新（重複通知防止）
+//   6. UserDB から Profile・FutureSelfModel を取得、ActionLogDB から直近Action_Logを取得
+//   7. generateCompletionMessage() で Bedrock を呼び出し Persona_Message 生成（FR-08-3/FR-10-3/FR-10-4）
+//      — マイルストーン達成時は称賛トーン、Primary完了時は FR-10-5、Pivot完了時は FR-10-6 のトーン
+//      — Bedrockタイムアウト/エラー時は BackendErrorHandler 経由でフォールバックメッセージを使用
+//   8. CompleteTicketResult { ticket, pointsAwarded, totalPoints, milestoneReached, personaMessage } を返却
 
 // 破棄履歴取得（FR-13-7）
 async function getExpiredTicketHistory(userId: string): Promise<ExpiredTicket[]>;
@@ -276,8 +291,15 @@ async function getExpiredTicketHistory(userId: string): Promise<ExpiredTicket[]>
 // Effort_Point 計算（純粋関数 — PBT対象）
 function calculatePoints(goalType: GoalType, actionLevel: ActionLevel): number;
 
-// マイルストーン判定（純粋関数）
-function checkMilestone(totalPoints: number): Milestone | null;
+// マイルストーン判定（純粋関数 — PBT対象）
+// lastMilestoneValue を比較して、前回通知済みのマイルストーンを超えた場合のみ Milestone を返す
+function checkMilestone(totalPoints: number, lastMilestoneValue: number): Milestone | null;
+
+// Done申告時の Persona_Message 生成（Bedrock呼び出し）
+async function generateCompletionMessage(
+  userId: string,
+  context: CompletionMessageContext, // { ticket, goalType, actionLevel, pointsAwarded, totalPoints, milestoneReached, profile, futureSelfModel, recentActionLogs }
+): Promise<string>;
 ```
 
 ### RecommendationLambda
@@ -313,18 +335,32 @@ async function runDailyBatch(): Promise<void>;
 async function expireTickets(userId: string): Promise<void>;
 async function runDailyAggregation(userId: string): Promise<DailySummary>;
 
-// 破棄メッセージ生成（DailySummary.discardMessage に保存する文字列を生成）
-function buildDiscardMessage(summary: DailySummary): string;
+// 破棄メッセージ生成（Bedrock呼び出し）
+// FR-13-5/FR-13-6/FR-08-8 の3ケースをコンテキストから判別してPersona_Messageトーンで生成する
+// Bedrockタイムアウト/エラー時は BackendErrorHandler のフォールバックテンプレートを使用
+async function buildDiscardMessage(
+  userId: string,
+  context: DiscardMessageContext, // { summary: DailySummary, profile: Profile, futureSelfModel: FutureSelfModel }
+): Promise<string>;
 ```
 
 ### StatsLambda
 
 ```typescript
 // 集計データ取得（API Gateway トリガー）
+
+// 当日分は EffortPointRecord を Query して集計、過去日は DailySummary を 1 GetItem
 async function getDailySummary(userId: string, date: string): Promise<DailySummary>;
+
+// DailySummary を直近7日分 Query して週単位で集計（StatsLambda 内でサマリー組み立て）
 async function getWeeklySummary(userId: string, weekStart: string): Promise<WeeklySummary>;
+
+// DailySummary を該当月分 Query して月単位で集計
 async function getMonthlySummary(userId: string, month: string): Promise<MonthlySummary>;
+
+// UserStats を 1 GetItem で取得（アトミックカウンターで維持されているため集計不要）
 async function getTotalPoints(userId: string): Promise<number>;
+
 // 次回アプリ起動時にフロントが表示する「最新の破棄メッセージ」取得
 async function getLatestDiscardMessage(userId: string): Promise<DiscardMessage | null>;
 ```
@@ -380,6 +416,12 @@ interface User {
   email: string;
   createdAt: string;
   accountStatus: "active" | "deleting";
+  // データ収集同意（オンボーディング時に明示的取得。FR-09-5/FR-12-1）
+  consent: {
+    similarUserDataCollection: boolean; // FR-09-5: Similar_User_Data 収集・利用同意（v1 は同意UIのみ、収集はv2）
+    locationData: boolean; // FR-12-1: 位置情報収集同意（v1 はサーバー送信なし、UIのみ）
+    agreedAt: string; // 同意取得日時
+  };
 }
 
 interface Profile {
@@ -533,6 +575,18 @@ interface ExpiredTicket {
   expiredAt: string;
 }
 
+// ユーザー単位の累計統計（DynamoDB のアトミックカウンターで更新）
+// ActionTicketLambda.completeTicket 内で UpdateItem ADD により原子更新する
+// StatsLambda.getTotalPoints は本アイテムを 1 GetItem で取得する
+interface UserStats {
+  userId: string; // PK
+  recordType: "stats"; // SK（固定値。ActionLogDB内のUserStats用レコードであることを識別）
+  totalPoints: number; // 累計Effort_Point（ADD で更新）
+  totalCompletedTickets: number; // 累計完了チケット数（ADD で更新）
+  lastMilestoneValue: number; // 直近到達したマイルストーン（100の倍数、重複通知防止用）
+  updatedAt: string;
+}
+
 // Recommendation に含まれる具体的な行動手順
 interface ActionStep {
   stepNumber: number;
@@ -580,5 +634,38 @@ interface DiscardMessage {
   message: string;
   completedCount: number;
   expiredCount: number;
+}
+
+// Done申告時のレスポンス（FR-08-3: Persona_Message を含む）
+interface CompleteTicketResult {
+  ticket: ActionTicket;
+  pointsAwarded: number;
+  totalPoints: number;
+  milestoneReached: Milestone | null;
+  // ActionTicketLambda が Bedrock を呼び出して生成した Persona_Message
+  // Primary達成時は FR-10-5 のトーン、Pivot達成時は FR-10-6 のトーン、
+  // マイルストーン達成時は特別な称賛メッセージを含む
+  personaMessage: string;
+}
+
+// ActionTicketLambda の generateCompletionMessage に渡すコンテキスト
+interface CompletionMessageContext {
+  ticket: ActionTicket;
+  goalType: GoalType;
+  actionLevel: ActionLevel;
+  pointsAwarded: number;
+  totalPoints: number;
+  milestoneReached: Milestone | null;
+  profile: Profile;
+  futureSelfModel: FutureSelfModel;
+  recentActionLogs: ActionLogEntry[];
+}
+
+// DailyAggregationLambda の buildDiscardMessage に渡すコンテキスト
+// FR-13-5/FR-13-6/FR-08-8 の3ケースをプロンプトで判別できるよう、必要なデータをまとめて渡す
+interface DiscardMessageContext {
+  summary: DailySummary;
+  profile: Profile;
+  futureSelfModel: FutureSelfModel;
 }
 ```

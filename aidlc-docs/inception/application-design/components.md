@@ -89,8 +89,8 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 項目     | 内容                                                                                                           |
 | -------- | -------------------------------------------------------------------------------------------------------------- |
 | **種別** | React Native 画面コンポーネント群                                                                              |
-| **責務** | 初回起動時のプロフィール登録フロー（ニックネーム・年齢・職業・興味・生活リズム・悩み）とAIサジェスト表示を担う |
-| **依存** | ProfileService、NavigationComponent                                                                            |
+| **責務** | 初回起動時のプロフィール登録フロー（ニックネーム・年齢・職業・興味・生活リズム・悩み）とAIサジェスト表示を担う。プロフィール登録に先立ち、**データ収集同意画面**（FR-09-5: Similar_User_Data の収集・利用同意、FR-12-1: 位置情報の収集同意）を表示し、ユーザーの明示的な同意（オプトイン）を取得して記録する |
+| **依存** | ProfileService、GoalService、NavigationComponent                                                                            |
 
 ### 1.3 HomeScreen
 
@@ -194,10 +194,10 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 項目                  | 内容                                                                                                                                                                                                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**              | AWS Lambda 関数                                                                                                                                                                                                                                                                             |
-| **責務**              | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更・昇格候補取得）のCRUD処理を担う。ProfileとGoalはどちらもUserに紐づき同じUserDBを参照するため統合する                                                                                             |
-| **APIエンドポイント** | `GET /me/profile`、`PUT /me/profile`、`GET /me/profile/suggestions`、`GET /me/profile/history`、`GET /me/goals`、`POST /me/goals`、`PUT /me/goals/{goalId}`、`DELETE /me/goals/{goalId}`、`POST /me/goals/generate`、`GET /me/goals/promotion-candidates`、`POST /me/goals/{goalId}/promote` |
-| **依存**              | DynamoDB（UserDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                                                                                                                                                  |
-| **主要メソッド**      | `getProfile` / `updateProfile` / `getProfileUpdateHistory` / `getProfileInputSuggestion` / `generateInitialPivotGoals` / `getGoals` / `createGoal` / `updateGoal` / `deleteGoal` / `setPrimaryGoal` / `updateGoalPriority` / `getPromotionCandidates` / `promoteCandidate`                  |
+| **責務**              | Profile（取得・更新・更新履歴）とGoal（一覧・追加・更新・削除・Primary_Goal設定・優先度変更・昇格候補取得）のCRUD処理、および学習データリセット（FR-11-3）を担う。ProfileとGoalはどちらもUserに紐づき同じUserDBを参照するため統合する。学習データリセットは UserDB（BehaviorModel・FutureSelfModel）と ActionLogDB（ActionLogEntry）の両方を対象とするためこのLambda内で完結させる                                                                                                                                              |
+| **APIエンドポイント** | `GET /me/profile`、`PUT /me/profile`、`GET /me/profile/suggestions`、`GET /me/profile/history`、`GET /me/goals`、`POST /me/goals`、`PUT /me/goals/{goalId}`、`DELETE /me/goals/{goalId}`、`POST /me/goals/generate`、`GET /me/goals/promotion-candidates`、`POST /me/goals/{goalId}/promote`、`POST /me/learning-data/reset` |
+| **依存**              | DynamoDB（UserDB・ActionLogDB）、Amazon Bedrock（プロフィール登録時のAIサジェスト・Pivot_Goal自動生成）                                                                                                                                                                                                  |
+| **主要メソッド**      | `getProfile` / `updateProfile` / `getProfileUpdateHistory` / `getProfileInputSuggestion` / `generateInitialPivotGoals` / `getGoals` / `createGoal` / `updateGoal` / `deleteGoal` / `setPrimaryGoal` / `updateGoalPriority` / `getPromotionCandidates` / `promoteCandidate` / `resetLearningData`                  |
 | **認可**              | JWT claims の `sub` を userId として使用（path には userId を含まない）                                                                                                                                                                                                                     |
 
 ### 2.3 ActionTicketLambda
@@ -205,11 +205,12 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | 項目                  | 内容                                                                                                                                                                                                                                                                                                                                                                   |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**              | AWS Lambda 関数                                                                                                                                                                                                                                                                                                                                                        |
-| **責務**              | Action_Ticketの生成・一覧取得・Done申告・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point計算・付与・マイルストーン判定をこのLambda内で完結して処理する。UserDBは参照しない（goalId等の関連情報はActionTicket自体が保持）                                                                                                                  |
+| **責務**              | Action_Ticketの生成・一覧取得・Done申告・破棄履歴取得を担う。Done申告時にAction_LogへのリアルタイムWrite・Effort_Point計算・付与・`UserStats` のアトミック更新（totalPoints/totalCompletedTickets）・マイルストーン判定を処理し、Amazon Bedrockを呼び出してPersona_Messageトーンの肯定メッセージ（FR-08-3/FR-10-1〜FR-10-6）を生成する                                                                                                       |
 | **APIエンドポイント** | `POST /me/tickets`（生成）、`GET /me/tickets`（一覧）、`PUT /me/tickets/{ticketId}/complete`（Done申告）、`GET /me/tickets/expired`（破棄履歴）                                                                                                                                                                                                                        |
-| **依存**              | DynamoDB（ActionLogDB）                                                                                                                                                                                                                                                                                                                                                |
-| **主要メソッド**      | `createTicket` / `getOpenTickets` / `completeTicket` / `getExpiredTicketHistory` / `calculatePoints`（純粋関数・PBT対象）/ `checkMilestone`                                                                                                                                                                                                                            |
+| **依存**              | DynamoDB（ActionLogDB・UserDB）、Amazon Bedrock（Done申告時のPersona_Message生成）                                                                                                                                                                                                                                                                                     |
+| **主要メソッド**      | `createTicket` / `getOpenTickets` / `completeTicket` / `getExpiredTicketHistory` / `calculatePoints`（純粋関数・PBT対象）/ `checkMilestone` / `generateCompletionMessage`（Bedrock呼び出し）                                                                                                                                                                           |
 | **認可**              | JWT claims の `sub` を userId として使用                                                                                                                                                                                                                                                                                                                               |
+| **備考**              | Done申告時の Persona_Message 生成は FR-10-3/FR-10-4 に従い、UserDB から Profile・FutureSelfModel を取得し、ActionLogDB の直近 Action_Log をコンテキストとして Bedrock に渡す。Bedrockタイムアウト/エラー時は BackendErrorHandler によりフォールバックメッセージを返す                                                                                                 |
 
 ### 2.4 RecommendationLambda
 
@@ -232,6 +233,7 @@ UIパーツではなく、機能的な責務単位（モジュール・サービ
 | **依存**              | DynamoDB（ActionLogDB）                                                                                                                                                                                                           |
 | **主要メソッド**      | `getDailySummary` / `getWeeklySummary` / `getMonthlySummary` / `getTotalPoints` / `getLatestDiscardMessage`                                                                                                                       |
 | **認可**              | JWT claims の `sub` を userId として使用                                                                                                                                                                                          |
+| **集計戦略**          | 累計値（`getTotalPoints`）は `UserStats` アイテムを 1 GetItem で取得する（アトミックカウンターで常時更新されている）。週/月サマリー（`getWeeklySummary`/`getMonthlySummary`）は `DailySummary` を期間 Query して StatsLambda 内で集計する。日次サマリー（`getDailySummary`）は過去日であれば `DailySummary` を 1 GetItem、当日分は `EffortPointRecord` を Query して集計する |
 
 ### 2.6 BackendErrorHandler
 
@@ -252,12 +254,12 @@ EventBridge Scheduler がスケジュール起動する Lambda 群。API Gateway
 | 項目             | 内容                                                                                                                                                                              |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**         | AWS Lambda 関数（日次バッチ）                                                                                                                                                     |
-| **責務**         | 日次バッチ処理を担う。EventBridgeから毎日0時に起動し、Open状態のAction_Ticketを自動破棄してDailySummaryを生成・集計する                                                           |
+| **責務**         | 日次バッチ処理を担う。EventBridgeから毎日0時に起動し、Open状態のAction_Ticketを自動破棄してDailySummaryを生成・集計する。DailySummary 生成時に Amazon Bedrock を呼び出して Persona_Message トーンの破棄メッセージを生成する                                                           |
 | **トリガー**     | EventBridge Scheduler（毎日0時）                                                                                                                                                  |
-| **依存**         | DynamoDB（ActionLogDB）                                                                                                                                                           |
-| **主要メソッド** | `runDailyBatch`（全ユーザーをループ）/ `expireTickets`（ActionTicketの自動破棄）/ `runDailyAggregation`（DailySummary集計）/ `buildDiscardMessage`（破棄メッセージ生成）         |
+| **依存**         | DynamoDB（ActionLogDB・UserDB）、Amazon Bedrock（破棄メッセージ生成）                                                                                                                                                           |
+| **主要メソッド** | `runDailyBatch`（全ユーザーをループ）/ `expireTickets`（ActionTicketの自動破棄）/ `runDailyAggregation`（DailySummary集計）/ `buildDiscardMessage`（Bedrock呼び出しで破棄メッセージ生成）         |
 | **認可**         | API Gateway を介さないため Cognito Authorizer 対象外。EventBridge の実行ロールで起動される                                                                                        |
-| **備考**         | 破棄メッセージ本文はDailySummary集計時にまとめて生成し、DailySummary に `discardMessage` フィールドとして保持する。次回アプリ起動時にフロント（HomeScreen）が当該日の DailySummary を StatsLambda 経由で読み取り、上部バナー/ダイアログで表示する（FR-13-5/FR-13-6） |
+| **備考**         | 破棄メッセージ本文はDailySummary集計時にまとめて生成し、DailySummary に `discardMessage` フィールドとして保持する。次回アプリ起動時にフロント（HomeScreen）が当該日の DailySummary を StatsLambda 経由で読み取り、上部バナー/ダイアログで表示する。**FR-13-5**（破棄チケットあり・完了チケットあり）、**FR-13-6**（破棄チケットあり・完了チケットなし）、**FR-08-8**（完了チケットなし・破棄チケットなし＝その日に一切の行動が記録されなかった）の 3 ケースをすべて `buildDiscardMessage` に渡すコンテキストから判別し、Bedrock へプロンプトとして送ることで Persona_Message トーンの文章を生成する。UserDB から Profile・FutureSelfModel を取得してパーソナライズに使用する（FR-10-3/FR-10-4）。Bedrockタイムアウト/エラー時は BackendErrorHandler のフォールバックメッセージテンプレートを使用 |
 
 ### 3.2 LearningEngineLambda
 
@@ -288,9 +290,9 @@ EventBridge Scheduler がスケジュール起動する Lambda 群。API Gateway
 | 項目             | 内容                                                                                                                               |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **種別**         | AWS DynamoDB テーブル                                                                                                              |
-| **責務**         | 行動ログ関連データの永続化。ActionLogEntry（誰が・いつ・どのチケットをどうしたか）・ActionTicket・EffortPointRecord・DailySummary・Milestoneを格納する |
+| **責務**         | 行動ログ関連データの永続化。ActionLogEntry（誰が・いつ・どのチケットをどうしたか）・ActionTicket・EffortPointRecord・DailySummary・Milestone・UserStatsを格納する |
 | **キャパシティ** | オンデマンドモード                                                                                                                 |
-| **格納エンティティと型定義参照** | 以下のエンティティを格納。型定義は [component-methods.md — ActionLogDB 格納エンティティ型定義](./component-methods.md#actionlogdb-格納エンティティ型定義) を参照。<br>・`ActionLogEntry`（userId・ticketId・actionType=done/expire・timestamp。誰がどのチケットをどうしたかを記録）<br>・`ActionTicket`（ticketId・userId・goalId・goalType・actionLevel・content・status）<br>・`EffortPointRecord`（userId・points・earnedAt）<br>・`DailySummary`（date・totalPoints・completedTickets・expiredTickets・discardMessage）<br>・`Milestone`（userId・milestoneValue・reachedAt） |
+| **格納エンティティと型定義参照** | 以下のエンティティを格納。型定義は [component-methods.md — ActionLogDB 格納エンティティ型定義](./component-methods.md#actionlogdb-格納エンティティ型定義) を参照。<br>・`ActionLogEntry`（userId・ticketId・actionType=done/expire・timestamp。誰がどのチケットをどうしたかを記録）<br>・`ActionTicket`（ticketId・userId・goalId・goalType・actionLevel・content・status）<br>・`EffortPointRecord`（userId・points・earnedAt）<br>・`DailySummary`（date・totalPoints・completedTickets・expiredTickets・discardMessage）<br>・`Milestone`（userId・milestoneValue・reachedAt）<br>・`UserStats`（userId単位の累計統計。totalPoints・totalCompletedTickets・lastMilestoneValue。DynamoDB UpdateItem ADD によるアトミック更新で維持し、`StatsLambda.getTotalPoints` は1 GetItemで取得する） |
 
 ### 4.3 SimilarUserDB（DynamoDB テーブル）
 

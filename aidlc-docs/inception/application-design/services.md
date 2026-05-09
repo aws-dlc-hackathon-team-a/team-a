@@ -53,7 +53,7 @@ Screens
 
 ## 2. ProfileService
 
-**責務**: プロフィール取得・更新・AIサジェストのオーケストレーション
+**責務**: プロフィール取得・更新・AIサジェスト・学習データリセットのオーケストレーション
 
 詳細メソッド: [component-methods.md — ProfileService](./component-methods.md#profileservice)
 
@@ -61,6 +61,7 @@ Screens
 
 - プロフィール更新成功時 → React Query キャッシュ無効化 → 画面再レンダリング
 - オンボーディング完了時 → Profile.isOnboardingComplete = true → MainTabへ遷移
+- **学習データリセット（FR-11-3）**: ProfileScreens の「学習データリセット」ボタンタップ → 確認ダイアログ → `resetLearningData()` → UserLambda が UserDB の BehaviorModel・FutureSelfModel をリセットし、ActionLogDB の ActionLogEntry を全削除 → 完了後に React Query キャッシュを無効化
 - **Note**: profileStore（Zustand）を使うか React Query キャッシュで代替するかは Construction Phase で決定
 
 ---
@@ -125,8 +126,9 @@ Screens
 
 **オーケストレーション**:
 
-- Done申告成功時 → ticketStore.markTicketDone() → Persona_Message + ポイント表示 → React Query キャッシュ無効化
-- Done申告時 → Persona_Messageトーンの肯定メッセージ表示（FrontendErrorHandlerのフォールバックメッセージ定数または CompleteTicketResult 内のメッセージから取得）
+- Done申告成功時 → ticketStore.markTicketDone() → React Query キャッシュ無効化
+- Done申告レスポンスの `personaMessage`（ActionTicketLambda が Bedrock で生成）をそのまま画面に表示（FR-08-3/FR-10-1〜FR-10-6）。Bedrockタイムアウト/エラー時は BackendErrorHandler がフォールバックメッセージをレスポンスに含めて返す
+- マイルストーン達成時（`milestoneReached` が非null）は特別メッセージ・バッジをあわせて表示（FR-08-7）
 - **破棄履歴表示**: `getExpiredHistory` は ActionTicketScreens の「破棄履歴タブ」から呼び出される（FR-13-7）
 
 ---
@@ -204,10 +206,15 @@ App起動
 ```
 Done申告
   → ActionTicketService.completeTicket()
-    → ActionTicketLambda: Action_Log記録（リアルタイム）+ Effort_Point計算・付与・マイルストーン判定
-    → レスポンス: { ticket, pointsAwarded, totalPoints, milestoneReached }
+    → ActionTicketLambda:
+        1. Action_Log記録（リアルタイム）
+        2. Effort_Point計算・付与
+        3. マイルストーン判定
+        4. UserDBからProfile・FutureSelfModel取得、ActionLogDBから直近ログ取得
+        5. Bedrock呼び出しでPersona_Message生成（FR-08-3/FR-10-3/FR-10-4）
+    → レスポンス: { ticket, pointsAwarded, totalPoints, milestoneReached, personaMessage }
   → ticketStore.markTicketDone()
-  → Persona_Message表示（肯定メッセージ + ポイント）
+  → personaMessage を画面表示（肯定メッセージ + ポイント）
   → マイルストーン達成時: 特別メッセージ・バッジ表示
 ```
 
@@ -218,7 +225,10 @@ EventBridge（毎日0時）
   → DailyAggregationLambda.runDailyBatch()
     → expireTickets(userId) で Open Ticket を破棄
     → runDailyAggregation(userId) で DailySummary 生成
-    → buildDiscardMessage() → DailySummary.discardMessage に保存
+    → UserDB から Profile・FutureSelfModel を取得
+    → buildDiscardMessage() が Bedrock を呼び出して Persona_Message トーンの破棄メッセージを生成
+      （FR-13-5/FR-13-6/FR-08-8 の3ケースをコンテキストで判別）
+    → DailySummary.discardMessage に保存
 
 次回アプリ起動時
   → HomeScreen マウント
