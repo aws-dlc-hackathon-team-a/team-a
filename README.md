@@ -2,7 +2,7 @@
 
 AWS DLC ハッカソン Team A のリポジトリです。
 
-## 📱 プロジェクト概要
+## プロジェクト概要
 
 「**だが、それでいい**」は、行動変容を支援するモバイルアプリケーションです。
 
@@ -17,12 +17,12 @@ AWS DLC ハッカソン Team A のリポジトリです。
 - **Action Ticket**: 具体的な行動をチケット化して完了申告
 - **Future Self Model**: 類似ユーザーのデータから未来の自分をシミュレート
 
-## 🎯 開発プロセス
+## 開発プロセス
 
 本プロジェクトは **AI-DLC（AI Development Life Cycle）** メソドロジーに従って開発されています。
 要件定義から設計まで、AIツール（Kiro）を活用した体系的な開発プロセスを経て作成されたドキュメント群です。
 
-## 🛠️ 技術スタック（設計）
+## 技術スタック（設計）
 
 ### フロントエンド
 - React Native / TypeScript
@@ -37,7 +37,7 @@ AWS DLC ハッカソン Team A のリポジトリです。
 - Amazon Bedrock（LLM / Recommendation生成）
 - Amazon EventBridge（スケジューラ）
 
-## � プロジェクト構造
+## プロジェクト構造
 
 ```
 team-a/
@@ -51,7 +51,7 @@ team-a/
         └── plans/           # 各種計画書
 ```
 
-## 📚 ドキュメント
+## ドキュメント
 
 ### 要件定義
 - [要件定義書](./aidlc-docs/inception/requirements/requirements.md)
@@ -78,7 +78,3 @@ team-a/
 - [AI-DLC 状態管理](./aidlc-docs/aidlc-state.md)
 - [監査ログ](./aidlc-docs/audit.md)
 - [ハンドオフサマリー](./aidlc-docs/handoff-summary.md)
-
-## 📄 ライセンス
-
-ISC
